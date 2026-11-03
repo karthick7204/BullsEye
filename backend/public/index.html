@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BullsEye | Automated Breakout Pattern Detection & Terminal</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              500: '#6366f1',
+              600: '#4f46e5',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body {
+      background-color: #090d16;
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0d1117; }
+    ::-webkit-scrollbar-thumb { background: #21262d; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #30363d; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased">
+
+  <!-- Top Navbar -->
+  <header class="sticky top-0 z-40 w-full border-b border-slate-800/80 bg-slate-950/85 backdrop-blur-xl">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 h-18 flex items-center justify-between gap-4 py-3">
+      <!-- Logo & Status -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-sky-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+          <i data-lucide="target" class="w-6 h-6 text-white"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-xl font-black tracking-tight text-white">BullsEye</h1>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              TERMINAL
+            </span>
+          </div>
+          <div class="flex items-center gap-2 text-xs text-slate-400">
+            <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span id="navWatchlistCount">Monitoring 11 Stocks</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center gap-2.5">
+        <button onclick="openWatchlistModal()" class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-300 transition-colors">
+          <i data-lucide="list-filter" class="w-4 h-4 text-slate-400"></i>
+          <span class="hidden sm:inline">Watchlist</span>
+        </button>
+
+        <button id="btnRefresh" onclick="manualRefresh()" class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-300 transition-colors">
+          <i data-lucide="refresh-cw" id="refreshIcon" class="w-4 h-4 text-indigo-400"></i>
+          <span class="hidden sm:inline">Refresh Scan</span>
+        </button>
+
+        <button onclick="toggleAlertDrawer()" class="relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white transition-all shadow-lg shadow-indigo-600/25">
+          <i data-lucide="bell" class="w-4 h-4"></i>
+          <span class="hidden sm:inline">Alerts</span>
+          <span id="alertCountBadge" class="hidden ml-1 px-1.5 py-0.2 rounded-full bg-rose-500 text-[10px] font-black text-white">
+            0
+          </span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 space-y-8">
+    
+    <!-- Top KPI Metrics Strip -->
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="p-5 rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950 border border-slate-800/80 shadow-lg">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">
+          <span>Active Formations</span>
+          <i data-lucide="layers" class="w-4 h-4 text-indigo-400"></i>
+        </div>
+        <div id="metricTotalPatterns" class="text-3xl font-black text-white">0</div>
+        <div class="text-xs text-slate-500 mt-1">Triangles & Box patterns</div>
+      </div>
+
+      <div class="p-5 rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950 border border-slate-800/80 shadow-lg">
+        <div class="flex items-center justify-between text-amber-400 text-xs font-semibold uppercase tracking-wider mb-2">
+          <span>Approaching Breakout</span>
+          <i data-lucide="zap" class="w-4 h-4 text-amber-400"></i>
+        </div>
+        <div id="metricApproaching" class="text-3xl font-black text-amber-400">0</div>
+        <div class="text-xs text-slate-500 mt-1">Within &le; 1.5% of boundary</div>
+      </div>
+
+      <div class="p-5 rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950 border border-slate-800/80 shadow-lg">
+        <div class="flex items-center justify-between text-rose-400 text-xs font-semibold uppercase tracking-wider mb-2">
+          <span>Volume Surges</span>
+          <i data-lucide="flame" class="w-4 h-4 text-rose-400"></i>
+        </div>
+        <div id="metricVolumeSurge" class="text-3xl font-black text-rose-400">0</div>
+        <div class="text-xs text-slate-500 mt-1">&ge; 1.5x 20-period SMA</div>
+      </div>
+
+      <div class="p-5 rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950 border border-slate-800/80 shadow-lg">
+        <div class="flex items-center justify-between text-emerald-400 text-xs font-semibold uppercase tracking-wider mb-2">
+          <span>Confirmed Breakouts</span>
+          <i data-lucide="trending-up" class="w-4 h-4 text-emerald-400"></i>
+        </div>
+        <div id="metricConfirmed" class="text-3xl font-black text-emerald-400">0</div>
+        <div class="text-xs text-slate-500 mt-1">Closed outside pattern</div>
+      </div>
+    </section>
+
+    <!-- Filters & Search Bar -->
+    <section class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-950 border border-slate-800/80">
+      <!-- Search Input -->
+      <div class="relative flex-1 max-w-md">
+        <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"></i>
+        <input
+          id="searchInput"
+          type="text"
+          placeholder="Search ticker (e.g. NVDA, AAPL, RELIANCE)..."
+          class="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors uppercase font-mono"
+        />
+      </div>
+
+      <!-- Pattern Type Pills -->
+      <div class="flex flex-wrap items-center gap-1.5" id="filterPillsContainer">
+        <button onclick="setFilter('ALL')" data-filter="ALL" class="filter-pill text-xs px-3 py-2 rounded-xl font-medium transition-all bg-indigo-600 text-white">All Patterns</button>
+        <button onclick="setFilter('ASCENDING_TRIANGLE')" data-filter="ASCENDING_TRIANGLE" class="filter-pill text-xs px-3 py-2 rounded-xl font-medium transition-all bg-slate-900 text-slate-400 hover:text-white">Ascending</button>
+        <button onclick="setFilter('DESCENDING_TRIANGLE')" data-filter="DESCENDING_TRIANGLE" class="filter-pill text-xs px-3 py-2 rounded-xl font-medium transition-all bg-slate-900 text-slate-400 hover:text-white">Descending</button>
+        <button onclick="setFilter('SYMMETRICAL_TRIANGLE')" data-filter="SYMMETRICAL_TRIANGLE" class="filter-pill text-xs px-3 py-2 rounded-xl font-medium transition-all bg-slate-900 text-slate-400 hover:text-white">Symmetrical</button>
+        <button onclick="setFilter('BOX_PATTERN')" data-filter="BOX_PATTERN" class="filter-pill text-xs px-3 py-2 rounded-xl font-medium transition-all bg-slate-900 text-slate-400 hover:text-white">Box / Darvas</button>
+      </div>
+
+      <!-- Sort Selector -->
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-slate-500 font-medium">Sort:</span>
+        <select id="sortSelect" onchange="renderGrid()" class="bg-slate-900 border border-slate-800 text-xs text-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500">
+          <option value="PROXIMITY">Proximity (Closest)</option>
+          <option value="CONFIDENCE">Confidence Fit</option>
+          <option value="SYMBOL">Symbol (A-Z)</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- Detected Patterns Grid -->
+    <section id="patternsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- Dynamic pattern cards will be injected here -->
+    </section>
+  </main>
+
+  <!-- Interactive Chart Modal -->
+  <div id="chartModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md">
+    <div class="relative w-full max-w-6xl rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between p-5 sm:p-6 border-b border-slate-800 bg-slate-950/70">
+        <div class="flex flex-wrap items-center gap-3">
+          <span id="modalSymbol" class="text-2xl sm:text-3xl font-black text-white">NVDA</span>
+          <span id="modalPatternBadge" class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
+            Ascending Triangle
+          </span>
+          <span id="modalStatusBadge" class="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+            Approaching Breakout
+          </span>
+        </div>
+
+        <button onclick="closeChartModal()" class="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+          <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-5 sm:p-6 overflow-y-auto space-y-6">
+        <!-- Top Quick Stats Strip -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+          <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800/80">
+            <span class="text-xs text-slate-400 uppercase tracking-wider font-medium">Current Price</span>
+            <div id="modalPrice" class="text-2xl font-black text-white mt-1">$0.00</div>
+          </div>
+          <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800/80">
+            <span class="text-xs text-sky-400 uppercase tracking-wider font-medium">Breakout Target</span>
+            <div id="modalBreakoutLevel" class="text-2xl font-black text-sky-400 mt-1">$0.00</div>
+          </div>
+          <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800/80">
+            <span class="text-xs text-amber-400 uppercase tracking-wider font-medium">Proximity %</span>
+            <div id="modalProximity" class="text-2xl font-black text-amber-400 mt-1">0.0%</div>
+          </div>
+          <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800/80">
+            <span class="text-xs text-rose-400 uppercase tracking-wider font-medium">Volume Surge</span>
+            <div id="modalVolume" class="text-2xl font-black text-rose-400 mt-1">1.0x</div>
+          </div>
+        </div>
+
+        <!-- Canvas Container -->
+        <div class="relative w-full rounded-2xl overflow-hidden border border-slate-800 bg-[#0d1117] shadow-2xl">
+          <div id="canvasHud" class="absolute top-3 left-4 z-10 flex flex-wrap items-center gap-3 text-xs font-mono bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-800/80 text-slate-300">
+            <span>Hover on chart to inspect candle coordinates</span>
+          </div>
+          <canvas id="stockCanvas" class="w-full cursor-crosshair block" style="height: 480px;"></canvas>
+        </div>
+
+        <!-- Technical Diagnostics -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-2xl bg-slate-950 border border-slate-800/80 text-xs text-slate-300">
+          <div>
+            <span class="text-slate-400 font-semibold block mb-1">Upper Resistance Line</span>
+            <div>Slope: <span id="diagUpperSlope" class="font-mono text-white">0.0000</span></div>
+            <div>R² Fit: <span id="diagUpperR2" class="font-mono text-white">0.0%</span></div>
+            <div>Touches: <span id="diagUpperTouches" class="font-mono text-rose-400">0 peaks</span></div>
+          </div>
+          <div>
+            <span class="text-slate-400 font-semibold block mb-1">Lower Support Line</span>
+            <div>Slope: <span id="diagLowerSlope" class="font-mono text-white">0.0000</span></div>
+            <div>R² Fit: <span id="diagLowerR2" class="font-mono text-white">0.0%</span></div>
+            <div>Touches: <span id="diagLowerTouches" class="font-mono text-emerald-400">0 troughs</span></div>
+          </div>
+          <div>
+            <span class="text-slate-400 font-semibold block mb-1">Pattern Geometry</span>
+            <div>Confidence Fit: <span id="diagConfidence" class="font-mono text-indigo-400 font-bold">0%</span></div>
+            <div>Breakout Bias: <span id="diagBias" class="font-mono text-white uppercase">BULLISH</span></div>
+            <div>Support Floor: <span id="diagSupport" class="font-mono text-emerald-400">$0.00</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Real-Time Alerts Drawer -->
+  <div id="alertDrawer" class="hidden fixed inset-0 z-50 overflow-hidden bg-black/60 backdrop-blur-sm">
+    <div class="absolute inset-y-0 right-0 max-w-full flex pl-10">
+      <div class="w-screen max-w-md bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col">
+        <!-- Drawer Header -->
+        <div class="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/70">
+          <div class="flex items-center gap-2.5">
+            <i data-lucide="bell" class="w-5 h-5 text-indigo-400"></i>
+            <h2 class="text-lg font-bold text-white">Breakout Alerts Feed</h2>
+            <span id="drawerAlertCount" class="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full font-medium">0</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <button onclick="clearAllAlerts()" title="Clear alerts" class="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors">
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+            <button onclick="toggleAlertDrawer()" class="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Drawer Content -->
+        <div id="drawerAlertList" class="flex-1 overflow-y-auto p-4 space-y-3">
+          <!-- Injected dynamically -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Watchlist Manager Modal -->
+  <div id="watchlistModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+    <div class="relative w-full max-w-lg rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl p-6">
+      <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+        <div class="flex items-center gap-2">
+          <i data-lucide="list-filter" class="w-5 h-5 text-indigo-400"></i>
+          <h3 class="text-lg font-bold text-white">Manage Scanner Watchlist</h3>
+        </div>
+        <button onclick="closeWatchlistModal()" class="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Add Ticker Form -->
+      <form onsubmit="handleAddToWatchlist(event)" class="mt-5">
+        <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-2">
+          Add Stock Ticker Symbol
+        </label>
+        <div class="flex gap-2">
+          <input
+            id="inputNewTicker"
+            type="text"
+            placeholder="e.g. NVDA, TSLA, RELIANCE.NS, BTC-USD"
+            class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 uppercase font-mono"
+          />
+          <button type="submit" class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm transition-colors">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            Add
+          </button>
+        </div>
+        <p id="watchlistError" class="text-xs text-rose-400 mt-2 hidden"></p>
+      </form>
+
+      <!-- Watchlist Items -->
+      <div class="mt-6">
+        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-3">
+          Currently Monitored
+        </span>
+        <div id="watchlistItemsList" class="max-h-60 overflow-y-auto space-y-2 pr-1">
+          <!-- Injected dynamically -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dashboard Core Script -->
+  <script>
+    let activePatterns = [];
+    let alerts = [];
+    let currentFilter = 'ALL';
+    let currentModalPattern = null;
+    let currentModalCandles = [];
+    let hoveredCandle = null;
+
+    // Initialize Dashboard
+    async function init() {
+      await fetchAllData();
+      lucide.createIcons();
+      // Auto-poll every 6 seconds
+      setInterval(fetchAllData, 6000);
+
+      document.getElementById('searchInput').addEventListener('input', () => {
+        renderGrid();
+      });
+    }
+
+    async function fetchAllData() {
+      try {
+        const [patRes, alertRes, statRes] = await Promise.all([
+          fetch('/api/patterns/active').then(r => r.json()),
+          fetch('/api/alerts').then(r => r.json()),
+          fetch('/api/scanner/status').then(r => r.json())
+        ]);
+
+        activePatterns = patRes.patterns || [];
+        alerts = alertRes.alerts || [];
+
+        updateMetrics();
+        renderGrid();
+        renderAlertDrawer();
+
+        if (statRes && statRes.totalTracked) {
+          document.getElementById('navWatchlistCount').innerText = `Monitoring ${statRes.totalTracked} Stocks`;
+        }
+      } catch (err) {
+        console.error('Failed to fetch dashboard data:', err);
+      }
+    }
+
+    function updateMetrics() {
+      document.getElementById('metricTotalPatterns').innerText = activePatterns.length;
+      document.getElementById('metricApproaching').innerText = activePatterns.filter(p => p.proximityPercent <= 1.5).length;
+      document.getElementById('metricVolumeSurge').innerText = activePatterns.filter(p => p.hasVolumeSurge).length;
+      document.getElementById('metricConfirmed').innerText = activePatterns.filter(p => p.status === 'CONFIRMED_BREAKOUT').length;
+
+      const badge = document.getElementById('alertCountBadge');
+      if (alerts.length > 0) {
+        badge.innerText = alerts.length;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    function setFilter(type) {
+      currentFilter = type;
+      document.querySelectorAll('.filter-pill').forEach(btn => {
+        if (btn.getAttribute('data-filter') === type) {
+          btn.className = 'filter-pill text-xs px-3 py-2 rounded-xl font-medium transition-all bg-indigo-600 text-white shadow-md shadow-indigo-600/30';
+        } else {
+          btn.className = 'filter-pill text-xs px-3 py-2 rounded-xl font-medium transition-all bg-slate-900 text-slate-400 hover:text-white';
+        }
+      });
+      renderGrid();
+    }
+
+    function renderGrid() {
+      const grid = document.getElementById('patternsGrid');
+      const search = document.getElementById('searchInput').value.trim().toLowerCase();
+      const sortBy = document.getElementById('sortSelect').value;
+
+      let filtered = activePatterns.filter(p => {
+        const matchesSearch = p.symbol.toLowerCase().includes(search);
+        const matchesType = currentFilter === 'ALL' || p.patternType === currentFilter;
+        return matchesSearch && matchesType;
+      });
+
+      if (sortBy === 'PROXIMITY') {
+        filtered.sort((a, b) => a.proximityPercent - b.proximityPercent);
+      } else if (sortBy === 'CONFIDENCE') {
+        filtered.sort((a, b) => b.confidenceScore - a.confidenceScore);
+      } else {
+        filtered.sort((a, b) => a.symbol.localeCompare(b.symbol));
+      }
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `
+          <div class="col-span-full py-20 rounded-3xl bg-slate-950 border border-slate-800/80 flex flex-col items-center justify-center text-center p-8">
+            <i data-lucide="layers" class="w-12 h-12 text-slate-600 mb-3"></i>
+            <h3 class="text-lg font-bold text-white">No Matching Breakout Patterns</h3>
+            <p class="text-sm text-slate-400 mt-1 max-w-md">Try modifying your filter or trigger a refresh scan.</p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      grid.innerHTML = filtered.map(p => {
+        const pBadge = getPatternBadge(p.patternType);
+        const sBadge = getStatusBadge(p.status);
+        const proximityColor = p.proximityPercent <= 0.5 ? 'bg-emerald-500' : (p.proximityPercent <= 1.5 ? 'bg-amber-400' : 'bg-indigo-500');
+        const proximityText = p.proximityPercent <= 1.0 ? 'text-emerald-400 font-bold' : 'text-amber-400 font-semibold';
+
+        return `
+          <div class="group relative rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950 border border-slate-800/80 hover:border-indigo-500/50 p-5 transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/10">
+            <!-- Header -->
+            <div class="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xl font-black text-white tracking-tight">${p.symbol}</span>
+                  <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full border ${pBadge.color}">
+                    ${pBadge.label}
+                  </span>
+                </div>
+                <p class="text-xs text-slate-400 mt-1">
+                  Confidence: <strong class="text-indigo-400">${p.confidenceScore}%</strong> Fit
+                </p>
+              </div>
+
+              <span class="text-[11px] px-2.5 py-1 rounded-full ${sBadge.color}">
+                ${sBadge.label}
+              </span>
+            </div>
+
+            <!-- Price & Breakout Grid -->
+            <div class="grid grid-cols-2 gap-3 my-4 p-3 rounded-xl bg-slate-950/60 border border-slate-800/60">
+              <div>
+                <span class="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">Current Price</span>
+                <div class="text-lg font-bold text-slate-100">$${p.currentPrice.toFixed(2)}</div>
+              </div>
+              <div>
+                <span class="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">Breakout Level</span>
+                <div class="text-lg font-bold text-sky-400">$${p.breakoutLevel.toFixed(2)}</div>
+              </div>
+            </div>
+
+            <!-- Proximity Progress Bar -->
+            <div class="mb-4">
+              <div class="flex justify-between text-xs mb-1.5 font-medium">
+                <span class="text-slate-400">Proximity to Breakout:</span>
+                <span class="${proximityText}">${p.proximityPercent.toFixed(2)}% away</span>
+              </div>
+              <div class="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                <div class="h-full rounded-full transition-all duration-500 ${proximityColor}" style="width: ${Math.max(10, Math.min(100, 100 - p.proximityPercent * 20))}%"></div>
+              </div>
+            </div>
+
+            <!-- Volume & Action -->
+            <div class="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800/60 mb-4">
+              <div>
+                ${p.hasVolumeSurge ? 
+                  `<span class="inline-flex items-center gap-1 text-rose-400 font-semibold bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20">
+                     🔥 ${p.volumeMultiplier}x Vol Surge
+                   </span>` : 
+                  `<span class="text-slate-400 bg-slate-800/50 px-2 py-0.5 rounded-md">${p.volumeMultiplier}x Volume</span>`
+                }
+              </div>
+              <span class="text-slate-400 font-mono">Floor: $${p.supportLevel.toFixed(2)}</span>
+            </div>
+
+            <button onclick="inspectPattern('${p.symbol}')" class="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm transition-all duration-200 shadow-lg shadow-indigo-600/20 active:scale-[0.98]">
+              <i data-lucide="eye" class="w-4 h-4"></i>
+              Inspect Live Chart & Overlays
+            </button>
+          </div>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    function getPatternBadge(type) {
+      switch (type) {
+        case 'ASCENDING_TRIANGLE': return { label: 'Ascending Triangle', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' };
+        case 'DESCENDING_TRIANGLE': return { label: 'Descending Triangle', color: 'bg-rose-500/10 text-rose-400 border-rose-500/20' };
+        case 'SYMMETRICAL_TRIANGLE': return { label: 'Symmetrical Triangle', color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' };
+        case 'BOX_PATTERN': return { label: 'Box / Darvas', color: 'bg-amber-500/10 text-amber-400 border-amber-500/20' };
+        default: return { label: type, color: 'bg-slate-500/10 text-slate-400 border-slate-500/20' };
+      }
+    }
+
+    function getStatusBadge(status) {
+      switch (status) {
+        case 'CONFIRMED_BREAKOUT': return { label: '🚀 Confirmed Breakout', color: 'bg-emerald-500 text-slate-950 font-bold' };
+        case 'AT_BREAKOUT_LEVEL': return { label: '⚡ At Breakout Point', color: 'bg-sky-500 text-slate-950 font-semibold' };
+        case 'APPROACHING_BREAKOUT': return { label: '🔔 Approaching Breakout', color: 'bg-amber-500 text-slate-950 font-medium' };
+        case 'CONFIRMED_BREAKDOWN': return { label: '⚠️ Breakdown', color: 'bg-rose-500 text-white font-bold' };
+        default: return { label: 'In Formation', color: 'bg-slate-800 text-slate-400' };
+      }
+    }
+
+    // Modal & Chart Rendering
+    async function inspectPattern(symbol) {
+      const p = activePatterns.find(x => x.symbol === symbol);
+      if (!p) return;
+
+      currentModalPattern = p;
+      document.getElementById('modalSymbol').innerText = p.symbol;
+      document.getElementById('modalPrice').innerText = `$${p.currentPrice.toFixed(2)}`;
+      document.getElementById('modalBreakoutLevel').innerText = `$${p.breakoutLevel.toFixed(2)}`;
+      document.getElementById('modalProximity').innerText = `${p.proximityPercent.toFixed(2)}%`;
+      document.getElementById('modalVolume').innerText = `${p.volumeMultiplier}x ${p.hasVolumeSurge ? '🔥' : ''}`;
+
+      document.getElementById('diagUpperSlope').innerText = p.upperLine.slope.toFixed(4);
+      document.getElementById('diagUpperR2').innerText = `${(p.upperLine.rSquared * 100).toFixed(1)}%`;
+      document.getElementById('diagUpperTouches').innerText = `${p.upperTouches.length} peaks`;
+
+      document.getElementById('diagLowerSlope').innerText = p.lowerLine.slope.toFixed(4);
+      document.getElementById('diagLowerR2').innerText = `${(p.lowerLine.rSquared * 100).toFixed(1)}%`;
+      document.getElementById('diagLowerTouches').innerText = `${p.lowerTouches.length} troughs`;
+
+      document.getElementById('diagConfidence').innerText = `${p.confidenceScore}%`;
+      document.getElementById('diagBias').innerText = p.direction;
+      document.getElementById('diagSupport').innerText = `$${p.supportLevel.toFixed(2)}`;
+
+      document.getElementById('chartModal').classList.remove('hidden');
+
+      // Fetch candles and draw on canvas
+      try {
+        const res = await fetch(`/api/stocks/${encodeURIComponent(symbol)}/chart`).then(r => r.json());
+        currentModalCandles = res.candles || [];
+        drawCanvasChart();
+      } catch (err) {
+        console.error('Failed to load chart:', err);
+      }
+    }
+
+    function closeChartModal() {
+      document.getElementById('chartModal').classList.add('hidden');
+    }
+
+    function drawCanvasChart(mousePos = null) {
+      const canvas = document.getElementById('stockCanvas');
+      if (!canvas || currentModalCandles.length === 0) return;
+
+      const ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      const width = canvas.parentElement.clientWidth;
+      const height = 480;
+
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+
+      ctx.scale(dpr, dpr);
+
+      const padTop = 30;
+      const padBottom = 60;
+      const padLeft = 15;
+      const padRight = 75;
+
+      const chartW = width - padLeft - padRight;
+      const chartH = height - padTop - padBottom;
+
+      const candles = currentModalCandles;
+      const pattern = currentModalPattern;
+
+      let minPrice = Infinity;
+      let maxPrice = -Infinity;
+      let maxVol = 0;
+
+      for (const c of candles) {
+        if (c.low < minPrice) minPrice = c.low;
+        if (c.high > maxPrice) maxPrice = c.high;
+        if (c.volume > maxVol) maxVol = c.volume;
+      }
+
+      if (pattern) {
+        minPrice = Math.min(minPrice, pattern.lowerLine.startPrice, pattern.lowerLine.endPrice, pattern.supportLevel);
+        maxPrice = Math.max(maxPrice, pattern.upperLine.startPrice, pattern.upperLine.endPrice, pattern.breakoutLevel);
+      }
+
+      const pMargin = (maxPrice - minPrice) * 0.05 || 1.0;
+      minPrice -= pMargin;
+      maxPrice += pMargin;
+      const pRange = maxPrice - minPrice;
+
+      const getY = price => padTop + (1 - (price - minPrice) / pRange) * chartH;
+      const count = candles.length;
+      const candleSpacing = chartW / count;
+      const candleW = Math.max(2, Math.min(10, candleSpacing * 0.7));
+      const getX = i => padLeft + i * candleSpacing + candleSpacing / 2;
+
+      // 1. Background
+      ctx.fillStyle = '#0d1117';
+      ctx.fillRect(0, 0, width, height);
+
+      // Grid lines
+      ctx.strokeStyle = 'rgba(51, 65, 85, 0.3)';
+      ctx.lineWidth = 1;
+      const steps = 5;
+      for (let i = 0; i <= steps; i++) {
+        const gY = padTop + (i / steps) * chartH;
+        ctx.beginPath();
+        ctx.moveTo(padLeft, gY);
+        ctx.lineTo(width - padRight, gY);
+        ctx.stroke();
+
+        const p = maxPrice - (i / steps) * pRange;
+        ctx.fillStyle = '#64748b';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(`$${p.toFixed(2)}`, width - padRight + 8, gY + 4);
+      }
+
+      // 2. Volume Bars
+      const volMaxH = chartH * 0.22;
+      for (let i = 0; i < count; i++) {
+        const c = candles[i];
+        const x = getX(i);
+        const vH = (c.volume / (maxVol || 1)) * volMaxH;
+        const vY = padTop + chartH - vH;
+
+        ctx.fillStyle = c.close >= c.open ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)';
+        ctx.fillRect(x - candleW / 2, vY, candleW, vH);
+      }
+
+      // 3. Candlesticks
+      for (let i = 0; i < count; i++) {
+        const c = candles[i];
+        const x = getX(i);
+        const isUp = c.close >= c.open;
+        const col = isUp ? '#10b981' : '#ef4444';
+
+        // Wick
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(x, getY(c.high));
+        ctx.lineTo(x, getY(c.low));
+        ctx.stroke();
+
+        // Body
+        ctx.fillStyle = col;
+        const oY = getY(c.open);
+        const cY = getY(c.close);
+        ctx.fillRect(x - candleW / 2, Math.min(oY, cY), candleW, Math.max(1.5, Math.abs(cY - oY)));
+      }
+
+      // 4. Overlays & Trendlines
+      if (pattern) {
+        const startX = getX(Math.max(0, pattern.upperLine.startIndex));
+        const endX = getX(Math.min(count - 1, pattern.upperLine.endIndex));
+
+        // Upper Resistance (Red)
+        ctx.strokeStyle = '#f43f5e';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(startX, getY(pattern.upperLine.startPrice));
+        ctx.lineTo(endX, getY(pattern.upperLine.endPrice));
+        ctx.stroke();
+
+        // Lower Support (Green)
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(startX, getY(pattern.lowerLine.startPrice));
+        ctx.lineTo(endX, getY(pattern.lowerLine.endPrice));
+        ctx.stroke();
+
+        // Breakout Level (Dashed Sky)
+        const breakY = getY(pattern.breakoutLevel);
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 4]);
+        ctx.beginPath();
+        ctx.moveTo(startX, breakY);
+        ctx.lineTo(width - padRight, breakY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.fillText(`TARGET $${pattern.breakoutLevel.toFixed(2)}`, width - padRight + 8, breakY - 3);
+
+        // Pivot Touches
+        pattern.upperTouches.forEach(p => {
+          ctx.fillStyle = '#f43f5e';
+          ctx.beginPath();
+          ctx.arc(getX(p.index), getY(p.price) - 7, 4, 0, Math.PI * 2);
+          ctx.fill();
+        });
+
+        pattern.lowerTouches.forEach(p => {
+          ctx.fillStyle = '#10b981';
+          ctx.beginPath();
+          ctx.arc(getX(p.index), getY(p.price) + 7, 4, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+
+      // 5. Crosshair
+      if (mousePos) {
+        ctx.strokeStyle = 'rgba(99, 102, 241, 0.6)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+
+        ctx.beginPath();
+        ctx.moveTo(mousePos.x, padTop);
+        ctx.lineTo(mousePos.x, height - padBottom);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(padLeft, mousePos.y);
+        ctx.lineTo(width - padRight, mousePos.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Time axis
+      ctx.fillStyle = '#64748b';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      const step = Math.max(1, Math.floor(count / 7));
+      for (let i = 0; i < count; i += step) {
+        ctx.fillText(candles[i].dateStr || '', getX(i), height - padBottom + 18);
+      }
+    }
+
+    // Canvas Mouse Interaction
+    const canvas = document.getElementById('stockCanvas');
+    canvas.addEventListener('mousemove', e => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      drawCanvasChart({ x, y });
+
+      const padLeft = 15;
+      const padRight = 75;
+      const chartW = canvas.clientWidth - padLeft - padRight;
+      const count = currentModalCandles.length;
+      if (count === 0) return;
+
+      const idx = Math.floor((x - padLeft) / (chartW / count));
+      if (idx >= 0 && idx < count) {
+        const c = currentModalCandles[idx];
+        document.getElementById('canvasHud').innerHTML = `
+          <span class="text-white font-bold">${c.dateStr}</span>
+          <span>O: <strong class="text-white">$${c.open.toFixed(2)}</strong></span>
+          <span>H: <strong class="text-white">$${c.high.toFixed(2)}</strong></span>
+          <span>L: <strong class="text-white">$${c.low.toFixed(2)}</strong></span>
+          <span>C: <strong class="${c.close >= c.open ? 'text-emerald-400' : 'text-rose-400'}">$${c.close.toFixed(2)}</strong></span>
+          <span>Vol: <strong class="text-sky-400">${(c.volume / 1e6).toFixed(1)}M</strong></span>
+        `;
+      }
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+      drawCanvasChart(null);
+      document.getElementById('canvasHud').innerHTML = `<span>Hover on chart to inspect candle coordinates</span>`;
+    });
+
+    // Alert Drawer
+    function toggleAlertDrawer() {
+      const drawer = document.getElementById('alertDrawer');
+      drawer.classList.toggle('hidden');
+    }
+
+    function renderAlertDrawer() {
+      const container = document.getElementById('drawerAlertList');
+      document.getElementById('drawerAlertCount').innerText = alerts.length;
+
+      if (alerts.length === 0) {
+        container.innerHTML = `
+          <div class="h-64 flex flex-col items-center justify-center text-center p-6 text-slate-500">
+            <i data-lucide="bell" class="w-10 h-10 mb-3 text-slate-600"></i>
+            <p class="font-semibold text-slate-400">No active alerts</p>
+            <p class="text-xs mt-1">Alerts trigger automatically when stocks enter proximity threshold (&le; 1.5%).</p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      container.innerHTML = alerts.map(a => `
+        <div onclick="selectAlertSymbol('${a.symbol}')" class="p-4 rounded-2xl bg-slate-950 border border-slate-800/90 hover:border-indigo-500/50 cursor-pointer transition-all">
+          <div class="flex items-start justify-between gap-2 mb-1.5">
+            <span class="text-base font-black text-white hover:text-indigo-400 transition-colors">${a.symbol}</span>
+            <span class="text-[10px] text-slate-500 font-mono">${new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+          <p class="text-xs text-slate-300 font-medium leading-relaxed mb-3">${a.message}</p>
+          <div class="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/60 font-mono">
+            <span>Target: $${a.breakoutLevel.toFixed(2)}</span>
+            <span class="${a.proximityPercent <= 1.0 ? 'text-emerald-400 font-bold' : 'text-amber-400'}">${a.proximityPercent.toFixed(2)}% away</span>
+            ${a.volumeMultiplier >= 1.5 ? `<span class="text-rose-400 font-bold">🔥 ${a.volumeMultiplier}x</span>` : ''}
+          </div>
+        </div>
+      `).join('');
+
+      lucide.createIcons();
+    }
+
+    function selectAlertSymbol(symbol) {
+      toggleAlertDrawer();
+      inspectPattern(symbol);
+    }
+
+    async function clearAllAlerts() {
+      await fetch('/api/alerts/clear', { method: 'POST' });
+      alerts = [];
+      updateMetrics();
+      renderAlertDrawer();
+    }
+
+    // Watchlist Modal
+    async function openWatchlistModal() {
+      const res = await fetch('/api/scanner/watchlist').then(r => r.json());
+      const list = res.watchlist || [];
+      const container = document.getElementById('watchlistItemsList');
+
+      container.innerHTML = list.map(sym => `
+        <div class="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800/80">
+          <span class="font-bold text-white font-mono text-sm">${sym}</span>
+          <button onclick="handleRemoveFromWatchlist('${sym}')" class="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors">
+            <i data-lucide="trash-2" class="w-4 h-4"></i>
+          </button>
+        </div>
+      `).join('');
+
+      lucide.createIcons();
+      document.getElementById('watchlistModal').classList.remove('hidden');
+    }
+
+    function closeWatchlistModal() {
+      document.getElementById('watchlistModal').classList.add('hidden');
+    }
+
+    async function handleAddToWatchlist(e) {
+      e.preventDefault();
+      const input = document.getElementById('inputNewTicker');
+      const err = document.getElementById('watchlistError');
+      const sym = input.value.trim().toUpperCase();
+      if (!sym) return;
+
+      const res = await fetch('/api/scanner/watchlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol: sym })
+      });
+
+      if (res.ok) {
+        input.value = '';
+        err.classList.add('hidden');
+        openWatchlistModal();
+        manualRefresh();
+      } else {
+        err.innerText = `${sym} already in watchlist or invalid.`;
+        err.classList.remove('hidden');
+      }
+    }
+
+    async function handleRemoveFromWatchlist(sym) {
+      await fetch(`/api/scanner/watchlist/${encodeURIComponent(sym)}`, { method: 'DELETE' });
+      openWatchlistModal();
+      manualRefresh();
+    }
+
+    async function manualRefresh() {
+      const icon = document.getElementById('refreshIcon');
+      icon.classList.add('animate-spin');
+      await fetch('/api/scanner/run', { method: 'POST' });
+
+      setTimeout(async () => {
+        await fetchAllData();
+        icon.classList.remove('animate-spin');
+      }, 2000);
+    }
+
+    // Boot
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
+
