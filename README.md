@@ -122,3 +122,4 @@ $$y_{\text{apex}} = m_{\text{upper}} \cdot x_{\text{apex}} + c_{\text{upper}}$$
 
 ## 📄 License
 ISC © [karthick7204](https://github.com/karthick7204)
+

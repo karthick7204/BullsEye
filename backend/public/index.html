@@ -125,10 +125,10 @@
   </header>
 
   <!-- MAIN VIEWPORT (CHART + RIGHT SIDEBAR) -->
-  <div class="flex-1 flex overflow-hidden relative">
+  <div class="flex-1 flex overflow-hidden relative" style="height: calc(100vh - 52px); min-height: 500px;">
 
     <!-- LEFT / MAIN: TRADINGVIEW CHART STAGE -->
-    <div class="flex-1 flex flex-col relative bg-white dark:bg-[#131722] overflow-hidden">
+    <div class="flex-1 flex flex-col relative bg-white dark:bg-[#131722] overflow-hidden" style="height: 100%;">
       <!-- Buy / Sell / Proximity Quick Bar -->
       <div class="absolute top-3 left-4 z-10 flex items-center gap-2 pointer-events-none">
         <div class="pointer-events-auto flex items-center shadow-md rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 text-xs font-bold">
@@ -161,7 +161,7 @@
       </div>
 
       <!-- Chart Canvas Container -->
-      <div id="chartContainer" class="w-full h-full relative cursor-crosshair"></div>
+      <div id="chartContainer" class="w-full h-full relative cursor-crosshair" style="width: 100%; height: 100%; min-height: 480px;"></div>
     </div>
 
     <!-- RIGHT: TRADINGVIEW SIDEBAR (WATCHLIST & STOCK OVERVIEW) -->
@@ -345,13 +345,17 @@
       const container = document.getElementById('chartContainer');
       if (!container) return;
 
+      const rect = container.getBoundingClientRect();
+      const width = rect.width > 50 ? rect.width : (window.innerWidth - 380);
+      const height = rect.height > 50 ? rect.height : (window.innerHeight - 60);
+
       const bg = isDarkMode ? '#131722' : '#ffffff';
       const text = isDarkMode ? '#787b86' : '#787b86';
       const grid = isDarkMode ? '#1e222d' : '#f0f3fa';
 
       chartInstance = LightweightCharts.createChart(container, {
-        width: container.clientWidth,
-        height: container.clientHeight,
+        width,
+        height,
         layout: {
           background: { type: 'solid', color: bg },
           textColor: text,
@@ -381,8 +385,8 @@
           borderColor: isDarkMode ? '#2a2e39' : '#e0e3eb',
           autoScale: true,
           scaleMargins: {
-            top: 0.1,
-            bottom: 0.25,
+            top: 0.08,
+            bottom: 0.18,
           },
         },
         timeScale: {
@@ -390,6 +394,7 @@
           timeVisible: true,
           secondsVisible: false,
           shiftVisibleRangeOnNewBar: true,
+          barSpacing: 10,
         },
         handleScroll: {
           mouseWheel: true,
@@ -398,88 +403,121 @@
           vertTouchDrag: true,
         },
         handleScale: {
-          axisPressedMouseMove: true,
+          axisPressedMouseMove: {
+            time: true,
+            price: true,
+          },
+          axisDoubleClickReset: {
+            time: true,
+            price: true,
+          },
           mouseWheel: true,
           pinch: true,
         },
       });
 
       // Candlesticks (TradingView Colors: #089981 Green, #f23645 Red)
-      candleSeries = chartInstance.addCandlestickSeries({
+      const candleOpts = {
         upColor: '#089981',
         downColor: '#f23645',
-        borderVisible: false,
+        borderVisible: true,
+        borderColor: '#089981',
+        borderUpColor: '#089981',
+        borderDownColor: '#f23645',
+        wickVisible: true,
         wickUpColor: '#089981',
         wickDownColor: '#f23645',
-      });
+      };
+      if (typeof chartInstance.addCandlestickSeries === 'function') {
+        candleSeries = chartInstance.addCandlestickSeries(candleOpts);
+      } else if (typeof chartInstance.addSeries === 'function') {
+        candleSeries = chartInstance.addSeries(LightweightCharts.CandlestickSeries, candleOpts);
+      }
 
-      // Volume series
-      volumeSeries = chartInstance.addHistogramSeries({
+      // Volume series (pinned in bottom 18% overlay)
+      const volOpts = {
         color: '#26a69a',
         priceFormat: { type: 'volume' },
         priceScaleId: '',
-      });
+      };
+      if (typeof chartInstance.addHistogramSeries === 'function') {
+        volumeSeries = chartInstance.addHistogramSeries(volOpts);
+      } else if (typeof chartInstance.addSeries === 'function') {
+        volumeSeries = chartInstance.addSeries(LightweightCharts.HistogramSeries, volOpts);
+      }
 
-      volumeSeries.priceScale().applyOptions({
-        scaleMargins: {
-          top: 0.8,
-          bottom: 0,
-        },
-      });
+      if (volumeSeries && typeof volumeSeries.priceScale === 'function') {
+        volumeSeries.priceScale().applyOptions({
+          scaleMargins: {
+            top: 0.82,
+            bottom: 0,
+          },
+        });
+      }
 
       // Trendlines
-      upperLineSeries = chartInstance.addLineSeries({
-        color: '#f23645',
-        lineWidth: 2,
-        title: 'Resistance',
-        priceLineVisible: false,
-      });
+      const makeLine = (color, width, style = 0, title = '', showTag = false) => {
+        const opts = {
+          color,
+          lineWidth: width,
+          lineStyle: style,
+          title,
+          priceLineVisible: false,
+          lastValueVisible: showTag,
+        };
+        if (typeof chartInstance.addLineSeries === 'function') {
+          return chartInstance.addLineSeries(opts);
+        } else if (typeof chartInstance.addSeries === 'function') {
+          return chartInstance.addSeries(LightweightCharts.LineSeries, opts);
+        }
+      };
 
-      lowerLineSeries = chartInstance.addLineSeries({
-        color: '#089981',
-        lineWidth: 2,
-        title: 'Support',
-        priceLineVisible: false,
-      });
+      upperLineSeries = makeLine('#f23645', 2, 0, 'Resistance', false);
+      lowerLineSeries = makeLine('#089981', 2, 0, 'Support', false);
+      breakoutLineSeries = makeLine('#2962ff', 2, LightweightCharts.LineStyle.Dashed, 'Breakout Target', true);
 
-      breakoutLineSeries = chartInstance.addLineSeries({
-        color: '#2962ff',
-        lineWidth: 1,
-        lineStyle: LightweightCharts.LineStyle.Dashed,
-        title: 'Breakout Level',
-        priceLineVisible: true,
-      });
+      // Helper to update live HUD
+      window.updateHud = function(open, high, low, close, volume) {
+        if (open == null) return;
+        document.getElementById('hudOpen').innerText = Number(open).toFixed(2);
+        document.getElementById('hudHigh').innerText = Number(high).toFixed(2);
+        document.getElementById('hudLow').innerText = Number(low).toFixed(2);
+        document.getElementById('hudClose').innerText = Number(close).toFixed(2);
+        
+        const isUp = close >= open;
+        document.getElementById('hudClose').className = isUp ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-rose-600 dark:text-rose-400 font-bold';
+        if (volume != null) {
+          const volFormatted = volume >= 1e6 ? (volume / 1e6).toFixed(2) + 'M' : (volume / 1e3).toFixed(1) + 'K';
+          document.getElementById('hudVol').innerText = volFormatted;
+        }
+      };
 
       // Crosshair HUD tracker
       chartInstance.subscribeCrosshairMove(param => {
         if (!param.time || !param.seriesData.get(candleSeries)) {
+          if (cachedCandles.length > 0) {
+            const last = cachedCandles[cachedCandles.length - 1];
+            window.updateHud(last.open, last.high, last.low, last.close, last.volume);
+          }
           return;
         }
         const data = param.seriesData.get(candleSeries);
-        if (data) {
-          document.getElementById('hudOpen').innerText = data.open?.toFixed(2);
-          document.getElementById('hudHigh').innerText = data.high?.toFixed(2);
-          document.getElementById('hudLow').innerText = data.low?.toFixed(2);
-          document.getElementById('hudClose').innerText = data.close?.toFixed(2);
-          
-          const isUp = data.close >= data.open;
-          document.getElementById('hudClose').className = isUp ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
-        }
         const vData = param.seriesData.get(volumeSeries);
-        if (vData) {
-          document.getElementById('hudVol').innerText = (vData.value / 1e6).toFixed(2) + 'M';
+        if (data) {
+          window.updateHud(data.open, data.high, data.low, data.close, vData?.value);
         }
       });
 
       // Resize observer
-      window.addEventListener('resize', () => {
-        if (chartInstance && container) {
-          chartInstance.applyOptions({
-            width: container.clientWidth,
-            height: container.clientHeight,
-          });
+      const resizeObserver = new ResizeObserver(entries => {
+        for (const entry of entries) {
+          const { width, height } = entry.contentRect;
+          if (width > 50 && height > 50 && chartInstance) {
+            chartInstance.applyOptions({ width, height });
+          }
         }
       });
+      resizeObserver.observe(container);
     }
 
     // ZOOM IN TIMELINE
@@ -543,7 +581,8 @@
 
         // If no chart loaded yet or current symbol changed, load current symbol
         if (cachedCandles.length === 0 && activePatterns.length > 0) {
-          selectStock(activePatterns[0].symbol);
+          const tcsItem = activePatterns.find(p => p.symbol.includes('TCS'));
+          selectStock(tcsItem ? tcsItem.symbol : activePatterns[0].symbol);
         }
       } catch (err) {
         console.error('Watchlist fetch error:', err);
@@ -560,12 +599,22 @@
 
       try {
         const res = await fetch(`/api/patterns/scan/${encodeURIComponent(symbol)}?timeframe=${currentTimeframe}`).then(r => r.json());
-        if (!res || !res.candles) return;
+        if (!res || !res.candles || res.candles.length === 0) return;
 
-        cachedCandles = res.candles;
+        // Sort candles strictly ascending by time and deduplicate
+        const uniqueCandles = [];
+        const seenCandleTimes = new Set();
+        for (const c of res.candles) {
+          if (!seenCandleTimes.has(c.time)) {
+            seenCandleTimes.add(c.time);
+            uniqueCandles.push(c);
+          }
+        }
+        uniqueCandles.sort((a, b) => a.time - b.time);
+        cachedCandles = uniqueCandles;
 
         // Populate Candlesticks
-        const cData = res.candles.map(c => ({
+        const cData = uniqueCandles.map(c => ({
           time: c.time,
           open: c.open,
           high: c.high,
@@ -575,22 +624,30 @@
         candleSeries.setData(cData);
 
         // Populate Volume
-        const vData = res.candles.map(c => ({
+        const vData = uniqueCandles.map(c => ({
           time: c.time,
           value: c.volume,
-          color: c.close >= c.open ? 'rgba(8, 153, 129, 0.4)' : 'rgba(242, 54, 69, 0.4)',
+          color: c.close >= c.open ? 'rgba(8, 153, 129, 0.45)' : 'rgba(242, 54, 69, 0.45)',
         }));
         volumeSeries.setData(vData);
 
-        const latest = res.candles[res.candles.length - 1];
-        const prev = res.candles[res.candles.length - 2] || latest;
+        const latest = uniqueCandles[uniqueCandles.length - 1];
+        const prev = uniqueCandles[uniqueCandles.length - 2] || latest;
         const chg = latest.close - prev.close;
         const chgPct = (chg / prev.close) * 100;
         const isUp = chg >= 0;
 
+        // Update live HUD immediately
+        if (window.updateHud) {
+          window.updateHud(latest.open, latest.high, latest.low, latest.close, latest.volume);
+        }
+
+        const isIndian = symbol.includes('.NS') || symbol.includes('NIFTY') || symbol.includes('SENSEX');
+        const currSym = isIndian ? '₹' : '$';
+
         document.getElementById('quickBuyPrice').innerText = latest.close.toFixed(2);
         document.getElementById('quickSellPrice').innerText = (latest.close - 0.5).toFixed(2);
-        document.getElementById('statPrice').innerText = `$${latest.close.toFixed(2)}`;
+        document.getElementById('statPrice').innerText = `${currSym}${latest.close.toFixed(2)}`;
         document.getElementById('statChange').innerText = `${isUp ? '+' : ''}${chg.toFixed(2)} (${isUp ? '+' : ''}${chgPct.toFixed(2)}%)`;
         document.getElementById('statChange').className = `text-xs font-bold ${isUp ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`;
 
@@ -601,52 +658,78 @@
           document.getElementById('statPatternPill').innerText = p.patternType.replace(/_/g, ' ');
           document.getElementById('quickProximityText').innerText = `${p.proximityPercent.toFixed(2)}% to Breakout`;
           document.getElementById('statProximityText').innerText = `${p.proximityPercent.toFixed(2)}% away`;
-          document.getElementById('statBreakoutTarget').innerText = `$${p.breakoutLevel.toFixed(2)}`;
-          document.getElementById('statSupportFloor').innerText = `$${p.supportLevel.toFixed(2)}`;
+          document.getElementById('statBreakoutTarget').innerText = `${currSym}${p.breakoutLevel.toFixed(2)}`;
+          document.getElementById('statSupportFloor').innerText = `${currSym}${p.supportLevel.toFixed(2)}`;
           document.getElementById('statVolumeMult').innerText = `${p.volumeMultiplier}x ${p.hasVolumeSurge ? '🔥' : ''}`;
           document.getElementById('statPatternFit').innerText = `${p.confidenceScore}% R²`;
 
           const pWidth = Math.max(10, Math.min(100, 100 - p.proximityPercent * 20));
           document.getElementById('statProximityBar').style.width = `${pWidth}%`;
 
-          // Safe line time bounds
-          const safeStartTime = res.candles[Math.max(0, p.upperLine.startIndex)].time;
-          const safeEndTime = res.candles[Math.min(res.candles.length - 1, p.upperLine.endIndex)].time;
+          // Upper resistance line
+          const uStartIdx = Math.max(0, p.upperLine.startIndex);
+          const uEndIdx = Math.min(uniqueCandles.length - 1, p.upperLine.endIndex);
+          if (uStartIdx < uEndIdx) {
+            upperLineSeries.setData([
+              { time: uniqueCandles[uStartIdx].time, value: p.upperLine.startPrice },
+              { time: uniqueCandles[uEndIdx].time, value: p.upperLine.endPrice },
+            ]);
+          } else {
+            upperLineSeries.setData([]);
+          }
 
-          upperLineSeries.setData([
-            { time: safeStartTime, value: p.upperLine.startPrice },
-            { time: safeEndTime, value: p.upperLine.endPrice },
-          ]);
+          // Lower support line
+          const lStartIdx = Math.max(0, p.lowerLine.startIndex);
+          const lEndIdx = Math.min(uniqueCandles.length - 1, p.lowerLine.endIndex);
+          if (lStartIdx < lEndIdx) {
+            lowerLineSeries.setData([
+              { time: uniqueCandles[lStartIdx].time, value: p.lowerLine.startPrice },
+              { time: uniqueCandles[lEndIdx].time, value: p.lowerLine.endPrice },
+            ]);
+          } else {
+            lowerLineSeries.setData([]);
+          }
 
-          lowerLineSeries.setData([
-            { time: safeStartTime, value: p.lowerLine.startPrice },
-            { time: safeEndTime, value: p.lowerLine.endPrice },
-          ]);
+          // Horizontal breakout target level
+          const bStartIdx = Math.min(uStartIdx, lStartIdx);
+          const bEndIdx = Math.max(uEndIdx, lEndIdx);
+          if (bStartIdx < bEndIdx) {
+            breakoutLineSeries.setData([
+              { time: uniqueCandles[bStartIdx].time, value: p.breakoutLevel },
+              { time: uniqueCandles[bEndIdx].time, value: p.breakoutLevel },
+            ]);
+          } else {
+            breakoutLineSeries.setData([]);
+          }
 
-          breakoutLineSeries.setData([
-            { time: safeStartTime, value: p.breakoutLevel },
-            { time: safeEndTime, value: p.breakoutLevel },
-          ]);
-
-          // Marker points
-          const markers = [
+          // Marker points: ensure valid time and strictly unique timestamps
+          const rawMarkers = [
             ...p.upperTouches.map(t => ({
-              time: res.candles[Math.min(res.candles.length - 1, t.index)].time,
+              time: uniqueCandles[Math.min(uniqueCandles.length - 1, t.index)].time,
               position: 'aboveBar',
               color: '#f23645',
               shape: 'arrowDown',
               text: `R ${t.price.toFixed(1)}`,
             })),
             ...p.lowerTouches.map(t => ({
-              time: res.candles[Math.min(res.candles.length - 1, t.index)].time,
+              time: uniqueCandles[Math.min(uniqueCandles.length - 1, t.index)].time,
               position: 'belowBar',
               color: '#089981',
               shape: 'arrowUp',
               text: `S ${t.price.toFixed(1)}`,
             })),
           ];
-          markers.sort((a, b) => a.time - b.time);
-          candleSeries.setMarkers(markers);
+          rawMarkers.sort((a, b) => a.time - b.time);
+
+          const seenMarkerTimes = new Set();
+          const uniqueMarkers = [];
+          for (const m of rawMarkers) {
+            if (!seenMarkerTimes.has(m.time)) {
+              seenMarkerTimes.add(m.time);
+              uniqueMarkers.push(m);
+            }
+          }
+          candleSeries.setMarkers(uniqueMarkers);
         } else {
           upperLineSeries.setData([]);
           lowerLineSeries.setData([]);
@@ -654,7 +737,7 @@
           candleSeries.setMarkers([]);
         }
 
-        resetTimelineZoom();
+        chartInstance.timeScale().fitContent();
       } catch (err) {
         console.error('Error loading stock:', err);
       }
@@ -682,6 +765,7 @@
         const isCurrent = p.symbol === currentSymbol;
         const isUp = p.direction === 'BULLISH';
         const chgColor = isUp ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
+        const itemCurr = p.symbol.includes('.NS') ? '₹' : '$';
 
         return `
           <div onclick="selectStock('${p.symbol}')" class="px-4 py-2.5 grid grid-cols-12 items-center cursor-pointer transition-colors ${isCurrent ? 'bg-blue-50 dark:bg-blue-950/40 border-l-2 border-blue-600' : 'hover:bg-slate-100/60 dark:hover:bg-[#252a36]'}">
@@ -693,7 +777,7 @@
               </div>
             </div>
             <div class="col-span-4 text-right font-mono font-medium text-slate-800 dark:text-slate-200">
-              $${p.currentPrice.toFixed(2)}
+              ${itemCurr}${p.currentPrice.toFixed(2)}
             </div>
             <div class="col-span-3 text-right font-mono font-bold ${chgColor}">
               ${p.proximityPercent.toFixed(1)}%

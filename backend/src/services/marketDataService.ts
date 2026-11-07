@@ -154,14 +154,14 @@ export async function fetchStockCandles(
 }
 
 /**
- * Benchmark fallback tailored per timeframe
+ * Benchmark fallback tailored per timeframe with realistic price ranges and natural candle dynamics
  */
 function generateBenchmarkCandles(
   symbol: string,
   interval: string = '1d'
 ): Candle[] {
   const candles: Candle[] = [];
-  const count = 75;
+  const count = 85;
 
   let stepSeconds = 86400; // default 1d
   if (interval === '15m') stepSeconds = 900;
@@ -170,38 +170,69 @@ function generateBenchmarkCandles(
 
   const baseTime = Math.floor(Date.now() / 1000) - count * stepSeconds;
 
-  let basePrice = 120.0;
-  if (symbol.toUpperCase().includes('NVDA')) basePrice = 202.0;
-  if (symbol.toUpperCase().includes('AAPL')) basePrice = 230.0;
-  if (symbol.toUpperCase().includes('RELIANCE')) basePrice = 1307.0;
+  const upper = symbol.toUpperCase();
+  let basePrice = 2498.50; // default to TCS / large-cap
+  if (upper.includes('TCS')) basePrice = 2498.50;
+  else if (upper.includes('RELIANCE')) basePrice = 1320.00;
+  else if (upper.includes('INFY')) basePrice = 1845.00;
+  else if (upper.includes('NIFTY') || upper.includes('NIF1')) basePrice = 25030.00;
+  else if (upper.includes('BANK')) basePrice = 59086.00;
+  else if (upper.includes('SENSEX')) basePrice = 81028.00;
+  else if (upper.includes('SPX')) basePrice = 7376.00;
+  else if (upper.includes('NVDA')) basePrice = 224.66;
+  else if (upper.includes('AAPL')) basePrice = 232.50;
+  else if (upper.includes('MSFT')) basePrice = 425.00;
+  else if (upper.includes('TSLA')) basePrice = 248.00;
+  else if (upper.includes('AMD')) basePrice = 152.00;
+  else if (upper.includes('GOOGL')) basePrice = 178.00;
+  else if (upper.includes('AMZN')) basePrice = 196.00;
+  else if (upper.includes('META')) basePrice = 582.00;
 
   // Timeframe variation factors
   const isIntraday = interval === '15m' || interval === '1h';
-  const cyclePeriod = isIntraday ? 8 : 7;
-  const spreadFactor = isIntraday ? 0.05 : 0.12;
+  const cyclePeriod = isIntraday ? 10 : 8;
+  const spreadFactor = isIntraday ? 0.04 : 0.08;
 
-  const resistance = basePrice * (1 + spreadFactor);
-  const initialSupport = basePrice * (1 - spreadFactor * 0.8);
+  const resistance = basePrice * (1 + spreadFactor * 0.5);
+  const initialSupport = basePrice * (1 - spreadFactor * 0.9);
+
+  let prevClose = basePrice * 0.95;
 
   for (let i = 0; i < count; i++) {
-    const cycle = Math.sin((i / cyclePeriod) * Math.PI);
+    // Ascending triangle wave: rising support slope, flat resistance
+    const phase = (i / cyclePeriod) * Math.PI;
+    const cycle = Math.sin(phase);
+    const cycleSlope = Math.cos(phase); // Positive when rising, negative when pulling back
+    
     const risingSupport =
-      initialSupport + (i / count) * (resistance - initialSupport - basePrice * 0.015);
+      initialSupport + (i / count) * (resistance - initialSupport - basePrice * 0.01);
     const normalizedWave = (cycle + 1) / 2;
-    const price = risingSupport + normalizedWave * (resistance - risingSupport);
+    const targetPrice = risingSupport + normalizedWave * (resistance - risingSupport);
 
-    const barSpread = isIntraday ? basePrice * 0.003 : basePrice * 0.008;
-    const open = Number((price - barSpread * 0.5).toFixed(2));
-    const high = Number(
-      Math.min(price + barSpread, resistance + basePrice * 0.001).toFixed(2)
-    );
-    const low = Number(
-      Math.max(price - barSpread, risingSupport - basePrice * 0.001).toFixed(2)
-    );
-    const close = Number(price.toFixed(2));
-    const volume = Math.floor(
-      (isIntraday ? 1500000 : 25000000) + Math.sin(i * 0.5) * (isIntraday ? 400000 : 8000000)
-    );
+    // Candle spread
+    const volatility = isIntraday ? basePrice * 0.003 : basePrice * 0.007;
+    const isBullish = cycleSlope >= 0 || (i % 3 === 0 && i !== count - 1);
+
+    let open: number;
+    let close: number;
+
+    if (isBullish) {
+      open = Number((targetPrice - volatility * (0.3 + 0.3 * Math.random())).toFixed(2));
+      close = Number((targetPrice + volatility * (0.3 + 0.4 * Math.random())).toFixed(2));
+    } else {
+      open = Number((targetPrice + volatility * (0.3 + 0.3 * Math.random())).toFixed(2));
+      close = Number((targetPrice - volatility * (0.3 + 0.4 * Math.random())).toFixed(2));
+    }
+
+    // High & Low wicks
+    const wickTop = Math.random() * volatility * 0.4;
+    const wickBottom = Math.random() * volatility * 0.4;
+    const high = Number((Math.min(resistance + basePrice * 0.0005, Math.max(open, close) + wickTop)).toFixed(2));
+    const low = Number((Math.max(risingSupport - basePrice * 0.0005, Math.min(open, close) - wickBottom)).toFixed(2));
+
+    const baseVol = isIntraday ? 250000 : 2500000;
+    const volVariation = Math.sin(i * 0.6) * (baseVol * 0.3);
+    const volume = Math.floor(baseVol + volVariation + Math.random() * (baseVol * 0.2));
 
     const time = baseTime + i * stepSeconds;
     const dateObj = new Date(time * 1000);
@@ -218,12 +249,18 @@ function generateBenchmarkCandles(
       close,
       volume,
     });
+
+    prevClose = close;
   }
 
+  // Final candle near resistance for active breakout proximity
   const lastIndex = candles.length - 1;
-  candles[lastIndex].close = Number((resistance * 0.993).toFixed(2));
-  candles[lastIndex].high = Number((resistance * 0.998).toFixed(2));
-  candles[lastIndex].volume = Math.floor(candles[lastIndex].volume * 1.8);
+  const breakClose = Number((resistance * 0.994).toFixed(2));
+  candles[lastIndex].open = Number((breakClose * 0.996).toFixed(2));
+  candles[lastIndex].close = breakClose;
+  candles[lastIndex].high = Number((resistance * 0.999).toFixed(2));
+  candles[lastIndex].low = Number((breakClose * 0.992).toFixed(2));
+  candles[lastIndex].volume = Math.floor(candles[lastIndex].volume * 2.1); // Volume surge
 
   return candles;
 }
