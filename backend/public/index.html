@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BullsEye | Automated Breakout Pattern Detection & Terminal</title>
+  <title>TradingView | BullsEye Automated Breakout Terminal</title>
+  
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -12,974 +13,796 @@
       theme: {
         extend: {
           colors: {
-            brand: {
-              500: '#6366f1',
-              600: '#4f46e5',
+            tv: {
+              bg: '#ffffff',
+              card: '#f8f9fa',
+              border: '#e0e3eb',
+              text: '#131722',
+              subtext: '#787b86',
+              blue: '#2962ff',
+              up: '#089981',
+              down: '#f23645',
+              darkBg: '#131722',
+              darkCard: '#1e222d',
+              darkBorder: '#2a2e39',
+              darkText: '#d1d4dc',
+              darkSubtext: '#787b86',
             }
           }
         }
       }
     }
   </script>
+
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Local Standalone Lightweight Charts (TradingView) -->
+  <script src="/lightweight-charts.standalone.js"></script>
+
   <style>
     body {
-      background-color: #090d16;
-      color: #f8fafc;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+      user-select: none;
     }
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #0d1117; }
-    ::-webkit-scrollbar-thumb { background: #21262d; border-radius: 9999px; }
-    ::-webkit-scrollbar-thumb:hover { background: #30363d; }
+    /* Hide scrollbars for clean terminal look */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+    .dark ::-webkit-scrollbar-thumb { background: #334155; }
   </style>
 </head>
-<body class="min-h-screen flex flex-col antialiased">
+<body class="h-screen w-screen overflow-hidden flex flex-col bg-white text-slate-900 dark:bg-[#131722] dark:text-[#d1d4dc] transition-colors duration-200">
 
-  <!-- Top Navbar -->
-  <header class="sticky top-0 z-40 w-full border-b border-slate-800/80 bg-slate-950/85 backdrop-blur-xl">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 h-18 flex items-center justify-between gap-4 py-3">
-      <!-- Logo & Status -->
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-sky-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
-          <i data-lucide="target" class="w-6 h-6 text-white"></i>
+  <!-- TOP HEADER & TOOLBAR -->
+  <header class="h-13 min-h-[52px] border-b border-slate-200 dark:border-[#2a2e39] flex items-center justify-between px-3 sm:px-4 bg-white dark:bg-[#131722] shrink-0 z-20">
+    <!-- Left: Stock Symbol Info & Quick Stats -->
+    <div class="flex items-center gap-3 overflow-hidden">
+      <!-- Active Stock Branding -->
+      <div class="flex items-center gap-2 shrink-0">
+        <div class="w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shadow-sm" id="headerStockAvatar">
+          TCS
         </div>
-        <div>
-          <div class="flex items-center gap-2">
-            <h1 class="text-xl font-black tracking-tight text-white">BullsEye</h1>
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-              TERMINAL
-            </span>
-          </div>
-          <div class="flex items-center gap-2 text-xs text-slate-400">
-            <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span id="navWatchlistCount">Monitoring 11 Stocks</span>
-          </div>
+        <div class="flex items-center gap-1.5">
+          <span id="headerSymbol" class="font-bold text-base tracking-tight text-slate-900 dark:text-white">TCS</span>
+          <span class="text-xs text-slate-400 font-medium hidden sm:inline" id="headerExchange">NSE</span>
         </div>
       </div>
 
-      <!-- Action Buttons -->
-      <div class="flex items-center gap-2.5">
-        <!-- Timeframe Switcher -->
-        <div class="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-1 gap-1">
-          <span class="text-[10px] font-bold text-slate-500 uppercase px-1.5 hidden md:inline">Timeframe</span>
-          <button onclick="setGlobalTimeframe('15m')" data-tf="15m" class="tf-btn text-xs px-2.5 py-1 rounded-lg font-semibold text-slate-400 hover:text-white transition-all">15m</button>
-          <button onclick="setGlobalTimeframe('1h')" data-tf="1h" class="tf-btn text-xs px-2.5 py-1 rounded-lg font-semibold text-slate-400 hover:text-white transition-all">1h</button>
-          <button onclick="setGlobalTimeframe('1d')" data-tf="1d" class="tf-btn text-xs px-2.5 py-1 rounded-lg font-semibold text-white bg-indigo-600 shadow transition-all">1D</button>
-          <button onclick="setGlobalTimeframe('1wk')" data-tf="1wk" class="tf-btn text-xs px-2.5 py-1 rounded-lg font-semibold text-slate-400 hover:text-white transition-all">1W</button>
-        </div>
+      <div class="h-4 w-px bg-slate-300 dark:bg-slate-700 hidden sm:block"></div>
 
-        <button onclick="openWatchlistModal()" class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-300 transition-colors">
-          <i data-lucide="list-filter" class="w-4 h-4 text-slate-400"></i>
-          <span class="hidden sm:inline">Watchlist</span>
+      <!-- Timeframe Switcher -->
+      <div class="flex items-center bg-slate-100 dark:bg-[#1e222d] border border-slate-200 dark:border-[#2a2e39] rounded-lg p-0.5 text-xs font-semibold">
+        <button onclick="changeTimeframe('15m')" data-tf="15m" class="tf-btn px-2 py-1 rounded text-slate-600 dark:text-slate-400 hover:text-blue-600 transition-colors">15m</button>
+        <button onclick="changeTimeframe('1h')" data-tf="1h" class="tf-btn px-2 py-1 rounded text-slate-600 dark:text-slate-400 hover:text-blue-600 transition-colors">1h</button>
+        <button onclick="changeTimeframe('1d')" data-tf="1d" class="tf-btn px-2 py-1 rounded text-white bg-blue-600 shadow-sm transition-all">1D</button>
+        <button onclick="changeTimeframe('1wk')" data-tf="1wk" class="tf-btn px-2 py-1 rounded text-slate-600 dark:text-slate-400 hover:text-blue-600 transition-colors">1W</button>
+      </div>
+
+      <div class="h-4 w-px bg-slate-300 dark:bg-slate-700 hidden md:block"></div>
+
+      <!-- Live OHLC HUD -->
+      <div id="chartHud" class="hidden xl:flex items-center gap-3 text-xs font-mono text-slate-600 dark:text-slate-400">
+        <span>O <strong id="hudOpen" class="text-slate-900 dark:text-white">-</strong></span>
+        <span>H <strong id="hudHigh" class="text-slate-900 dark:text-white">-</strong></span>
+        <span>L <strong id="hudLow" class="text-slate-900 dark:text-white">-</strong></span>
+        <span>C <strong id="hudClose" class="text-emerald-600 dark:text-emerald-400">-</strong></span>
+        <span>Vol <strong id="hudVol" class="text-blue-600 dark:text-blue-400">-</strong></span>
+      </div>
+    </div>
+
+    <!-- Right Controls: Zoom Buttons, Pattern Filter, Theme Toggle -->
+    <div class="flex items-center gap-2 shrink-0">
+      <!-- Interactive Zoom & Timeline Controls -->
+      <div class="flex items-center bg-slate-100 dark:bg-[#1e222d] border border-slate-200 dark:border-[#2a2e39] rounded-lg p-0.5 text-xs font-semibold">
+        <button onclick="zoomInTimeline()" title="Zoom In Timeline" class="p-1.5 text-slate-600 dark:text-slate-300 hover:text-blue-600 hover:bg-white dark:hover:bg-slate-800 rounded transition-colors">
+          <i data-lucide="zoom-in" class="w-3.5 h-3.5"></i>
         </button>
-
-        <button id="btnRefresh" onclick="manualRefresh()" class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-300 transition-colors">
-          <i data-lucide="refresh-cw" id="refreshIcon" class="w-4 h-4 text-indigo-400"></i>
-          <span class="hidden sm:inline">Refresh Scan</span>
+        <button onclick="zoomOutTimeline()" title="Zoom Out Timeline" class="p-1.5 text-slate-600 dark:text-slate-300 hover:text-blue-600 hover:bg-white dark:hover:bg-slate-800 rounded transition-colors">
+          <i data-lucide="zoom-out" class="w-3.5 h-3.5"></i>
         </button>
-
-        <button onclick="toggleAlertDrawer()" class="relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white transition-all shadow-lg shadow-indigo-600/25">
-          <i data-lucide="bell" class="w-4 h-4"></i>
-          <span class="hidden sm:inline">Alerts</span>
-          <span id="alertCountBadge" class="hidden ml-1 px-1.5 py-0.2 rounded-full bg-rose-500 text-[10px] font-black text-white">
-            0
-          </span>
+        <button onclick="resetTimelineZoom()" title="Reset Zoom / Fit All" class="px-2 py-1 text-slate-600 dark:text-slate-300 hover:text-blue-600 hover:bg-white dark:hover:bg-slate-800 rounded transition-colors text-[11px]">
+          Fit All
         </button>
       </div>
+
+      <!-- Breakout Pattern Alert Indicator -->
+      <div id="patternHeaderBadge" class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-xs font-bold text-emerald-700 dark:text-emerald-400">
+        <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
+        <span id="headerPatternName">Ascending Triangle</span>
+      </div>
+
+      <!-- Theme Switcher (Light / Dark) -->
+      <button onclick="toggleTheme()" class="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Toggle Light / Dark Mode">
+        <i data-lucide="moon" id="themeIcon" class="w-4 h-4"></i>
+      </button>
+
+      <!-- Toggle Watchlist Sidebar Button (Mobile) -->
+      <button onclick="toggleSidebar()" class="lg:hidden p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+        <i data-lucide="panel-right" class="w-4 h-4"></i>
+      </button>
     </div>
   </header>
 
-  <!-- Main Container -->
-  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 space-y-8">
-    
-    <!-- Top KPI Metrics Strip -->
-    <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      <div class="p-5 rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950 border border-slate-800/80 shadow-lg">
-        <div class="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">
-          <span>Active Formations</span>
-          <i data-lucide="layers" class="w-4 h-4 text-indigo-400"></i>
-        </div>
-        <div id="metricTotalPatterns" class="text-3xl font-black text-white">0</div>
-        <div class="text-xs text-slate-500 mt-1">Triangles & Box patterns</div>
-      </div>
+  <!-- MAIN VIEWPORT (CHART + RIGHT SIDEBAR) -->
+  <div class="flex-1 flex overflow-hidden relative">
 
-      <div class="p-5 rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950 border border-slate-800/80 shadow-lg">
-        <div class="flex items-center justify-between text-amber-400 text-xs font-semibold uppercase tracking-wider mb-2">
-          <span>Approaching Breakout</span>
-          <i data-lucide="zap" class="w-4 h-4 text-amber-400"></i>
-        </div>
-        <div id="metricApproaching" class="text-3xl font-black text-amber-400">0</div>
-        <div class="text-xs text-slate-500 mt-1">Within &le; 1.5% of boundary</div>
-      </div>
-
-      <div class="p-5 rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950 border border-slate-800/80 shadow-lg">
-        <div class="flex items-center justify-between text-rose-400 text-xs font-semibold uppercase tracking-wider mb-2">
-          <span>Volume Surges</span>
-          <i data-lucide="flame" class="w-4 h-4 text-rose-400"></i>
-        </div>
-        <div id="metricVolumeSurge" class="text-3xl font-black text-rose-400">0</div>
-        <div class="text-xs text-slate-500 mt-1">&ge; 1.5x 20-period SMA</div>
-      </div>
-
-      <div class="p-5 rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950 border border-slate-800/80 shadow-lg">
-        <div class="flex items-center justify-between text-emerald-400 text-xs font-semibold uppercase tracking-wider mb-2">
-          <span>Confirmed Breakouts</span>
-          <i data-lucide="trending-up" class="w-4 h-4 text-emerald-400"></i>
-        </div>
-        <div id="metricConfirmed" class="text-3xl font-black text-emerald-400">0</div>
-        <div class="text-xs text-slate-500 mt-1">Closed outside pattern</div>
-      </div>
-    </section>
-
-    <!-- Filters & Search Bar -->
-    <section class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-950 border border-slate-800/80">
-      <!-- Search Input -->
-      <div class="relative flex-1 max-w-md">
-        <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"></i>
-        <input
-          id="searchInput"
-          type="text"
-          placeholder="Search ticker (e.g. NVDA, AAPL, RELIANCE)..."
-          class="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors uppercase font-mono"
-        />
-      </div>
-
-      <!-- Pattern Type Pills -->
-      <div class="flex flex-wrap items-center gap-1.5" id="filterPillsContainer">
-        <button onclick="setFilter('ALL')" data-filter="ALL" class="filter-pill text-xs px-3 py-2 rounded-xl font-medium transition-all bg-indigo-600 text-white">All Patterns</button>
-        <button onclick="setFilter('ASCENDING_TRIANGLE')" data-filter="ASCENDING_TRIANGLE" class="filter-pill text-xs px-3 py-2 rounded-xl font-medium transition-all bg-slate-900 text-slate-400 hover:text-white">Ascending</button>
-        <button onclick="setFilter('DESCENDING_TRIANGLE')" data-filter="DESCENDING_TRIANGLE" class="filter-pill text-xs px-3 py-2 rounded-xl font-medium transition-all bg-slate-900 text-slate-400 hover:text-white">Descending</button>
-        <button onclick="setFilter('SYMMETRICAL_TRIANGLE')" data-filter="SYMMETRICAL_TRIANGLE" class="filter-pill text-xs px-3 py-2 rounded-xl font-medium transition-all bg-slate-900 text-slate-400 hover:text-white">Symmetrical</button>
-        <button onclick="setFilter('BOX_PATTERN')" data-filter="BOX_PATTERN" class="filter-pill text-xs px-3 py-2 rounded-xl font-medium transition-all bg-slate-900 text-slate-400 hover:text-white">Box / Darvas</button>
-      </div>
-
-      <!-- Sort Selector -->
-      <div class="flex items-center gap-2">
-        <span class="text-xs text-slate-500 font-medium">Sort:</span>
-        <select id="sortSelect" onchange="renderGrid()" class="bg-slate-900 border border-slate-800 text-xs text-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500">
-          <option value="PROXIMITY">Proximity (Closest)</option>
-          <option value="CONFIDENCE">Confidence Fit</option>
-          <option value="SYMBOL">Symbol (A-Z)</option>
-        </select>
-      </div>
-    </section>
-
-    <!-- Detected Patterns Grid -->
-    <section id="patternsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <!-- Dynamic pattern cards will be injected here -->
-    </section>
-  </main>
-
-  <!-- Interactive Chart Modal -->
-  <div id="chartModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md">
-    <div class="relative w-full max-w-6xl rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-      <!-- Modal Header -->
-      <div class="flex items-center justify-between p-5 sm:p-6 border-b border-slate-800 bg-slate-950/70">
-        <div class="flex flex-wrap items-center gap-3">
-          <span id="modalSymbol" class="text-2xl sm:text-3xl font-black text-white">NVDA</span>
-          <span id="modalPatternBadge" class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
-            Ascending Triangle
-          </span>
-          <span id="modalStatusBadge" class="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-            Approaching Breakout
-          </span>
-        </div>
-
-        <!-- Modal Timeframe Selector -->
-        <div class="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-xl p-1 ml-auto mr-3">
-          <button onclick="switchModalTimeframe('15m')" data-modal-tf="15m" class="modal-tf-btn text-xs px-2.5 py-1 rounded-lg font-semibold text-slate-400 hover:text-white transition-all">15m</button>
-          <button onclick="switchModalTimeframe('1h')" data-modal-tf="1h" class="modal-tf-btn text-xs px-2.5 py-1 rounded-lg font-semibold text-slate-400 hover:text-white transition-all">1h</button>
-          <button onclick="switchModalTimeframe('1d')" data-modal-tf="1d" class="modal-tf-btn text-xs px-2.5 py-1 rounded-lg font-semibold text-white bg-indigo-600 shadow transition-all">1D</button>
-          <button onclick="switchModalTimeframe('1wk')" data-modal-tf="1wk" class="modal-tf-btn text-xs px-2.5 py-1 rounded-lg font-semibold text-slate-400 hover:text-white transition-all">1W</button>
-        </div>
-
-        <button onclick="closeChartModal()" class="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
-          <i data-lucide="x" class="w-6 h-6"></i>
-        </button>
-      </div>
-
-      <!-- Modal Body -->
-      <div class="p-5 sm:p-6 overflow-y-auto space-y-6">
-        <!-- Top Quick Stats Strip -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-          <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800/80">
-            <span class="text-xs text-slate-400 uppercase tracking-wider font-medium">Current Price</span>
-            <div id="modalPrice" class="text-2xl font-black text-white mt-1">$0.00</div>
+    <!-- LEFT / MAIN: TRADINGVIEW CHART STAGE -->
+    <div class="flex-1 flex flex-col relative bg-white dark:bg-[#131722] overflow-hidden">
+      <!-- Buy / Sell / Proximity Quick Bar -->
+      <div class="absolute top-3 left-4 z-10 flex items-center gap-2 pointer-events-none">
+        <div class="pointer-events-auto flex items-center shadow-md rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 text-xs font-bold">
+          <div class="bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 cursor-pointer transition-colors flex items-center gap-1">
+            <span id="quickSellPrice">0.00</span>
+            <span class="text-[10px] uppercase font-normal opacity-90">SELL</span>
           </div>
-          <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800/80">
-            <span class="text-xs text-sky-400 uppercase tracking-wider font-medium">Breakout Target</span>
-            <div id="modalBreakoutLevel" class="text-2xl font-black text-sky-400 mt-1">$0.00</div>
+          <div class="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-1.5 text-[11px] font-mono border-x border-slate-200 dark:border-slate-700" id="quickSpread">
+            0.5
           </div>
-          <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800/80">
-            <span class="text-xs text-amber-400 uppercase tracking-wider font-medium">Proximity %</span>
-            <div id="modalProximity" class="text-2xl font-black text-amber-400 mt-1">0.0%</div>
-          </div>
-          <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800/80">
-            <span class="text-xs text-rose-400 uppercase tracking-wider font-medium">Volume Surge</span>
-            <div id="modalVolume" class="text-2xl font-black text-rose-400 mt-1">1.0x</div>
+          <div class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 cursor-pointer transition-colors flex items-center gap-1">
+            <span id="quickBuyPrice">0.00</span>
+            <span class="text-[10px] uppercase font-normal opacity-90">BUY</span>
           </div>
         </div>
 
-        <!-- Canvas Container -->
-        <div class="relative w-full rounded-2xl overflow-hidden border border-slate-800 bg-[#0d1117] shadow-2xl">
-          <div id="canvasHud" class="absolute top-3 left-4 z-10 flex flex-wrap items-center gap-3 text-xs font-mono bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-800/80 text-slate-300">
-            <span>Hover on chart to inspect candle coordinates</span>
-          </div>
-          <canvas id="stockCanvas" class="w-full cursor-crosshair block" style="height: 480px;"></canvas>
-        </div>
-
-        <!-- Technical Diagnostics -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-2xl bg-slate-950 border border-slate-800/80 text-xs text-slate-300">
-          <div>
-            <span class="text-slate-400 font-semibold block mb-1">Upper Resistance Line</span>
-            <div>Slope: <span id="diagUpperSlope" class="font-mono text-white">0.0000</span></div>
-            <div>R² Fit: <span id="diagUpperR2" class="font-mono text-white">0.0%</span></div>
-            <div>Touches: <span id="diagUpperTouches" class="font-mono text-rose-400">0 peaks</span></div>
-          </div>
-          <div>
-            <span class="text-slate-400 font-semibold block mb-1">Lower Support Line</span>
-            <div>Slope: <span id="diagLowerSlope" class="font-mono text-white">0.0000</span></div>
-            <div>R² Fit: <span id="diagLowerR2" class="font-mono text-white">0.0%</span></div>
-            <div>Touches: <span id="diagLowerTouches" class="font-mono text-emerald-400">0 troughs</span></div>
-          </div>
-          <div>
-            <span class="text-slate-400 font-semibold block mb-1">Pattern Geometry</span>
-            <div>Confidence Fit: <span id="diagConfidence" class="font-mono text-indigo-400 font-bold">0%</span></div>
-            <div>Breakout Bias: <span id="diagBias" class="font-mono text-white uppercase">BULLISH</span></div>
-            <div>Support Floor: <span id="diagSupport" class="font-mono text-emerald-400">$0.00</span></div>
-          </div>
+        <div id="quickProximityTag" class="pointer-events-auto bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 px-2.5 py-1 rounded-lg text-xs font-semibold backdrop-blur-md flex items-center gap-1">
+          <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-500"></i>
+          <span id="quickProximityText">0.78% to Breakout</span>
         </div>
       </div>
+
+      <!-- Watermark TradingView Logo Bottom-Left -->
+      <div class="absolute bottom-6 left-4 z-10 pointer-events-none opacity-40 hover:opacity-100 transition-opacity flex items-center gap-1.5 text-xs font-black tracking-tighter text-slate-800 dark:text-slate-300">
+        <svg class="w-5 h-4" viewBox="0 0 36 28" fill="currentColor">
+          <path d="M14 22H7V11H14V22ZM21 28H15V6H21V28ZM28 28H22V17H28V28ZM35 28H29V0H35V28Z"/>
+        </svg>
+        <span>TradingView</span>
+        <span class="text-[9px] font-semibold tracking-normal text-slate-400">Lightweight Charts™</span>
+      </div>
+
+      <!-- Chart Canvas Container -->
+      <div id="chartContainer" class="w-full h-full relative cursor-crosshair"></div>
     </div>
-  </div>
 
-  <!-- Real-Time Alerts Drawer -->
-  <div id="alertDrawer" class="hidden fixed inset-0 z-50 overflow-hidden bg-black/60 backdrop-blur-sm">
-    <div class="absolute inset-y-0 right-0 max-w-full flex pl-10">
-      <div class="w-screen max-w-md bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col">
-        <!-- Drawer Header -->
-        <div class="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/70">
-          <div class="flex items-center gap-2.5">
-            <i data-lucide="bell" class="w-5 h-5 text-indigo-400"></i>
-            <h2 class="text-lg font-bold text-white">Breakout Alerts Feed</h2>
-            <span id="drawerAlertCount" class="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full font-medium">0</span>
-          </div>
-          <div class="flex items-center gap-1">
-            <button onclick="clearAllAlerts()" title="Clear alerts" class="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors">
-              <i data-lucide="trash-2" class="w-4 h-4"></i>
-            </button>
-            <button onclick="toggleAlertDrawer()" class="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
-              <i data-lucide="x" class="w-5 h-5"></i>
-            </button>
-          </div>
+    <!-- RIGHT: TRADINGVIEW SIDEBAR (WATCHLIST & STOCK OVERVIEW) -->
+    <aside id="sidebar" class="w-80 sm:w-88 xl:w-96 border-l border-slate-200 dark:border-[#2a2e39] bg-slate-50/70 dark:bg-[#1e222d] flex flex-col shrink-0 z-30 transition-all duration-300">
+      
+      <!-- Top Sidebar: Watchlist Header -->
+      <div class="h-11 border-b border-slate-200 dark:border-[#2a2e39] px-4 flex items-center justify-between text-xs font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-[#1e222d]">
+        <div class="flex items-center gap-1 cursor-pointer hover:text-blue-600 transition-colors">
+          <span>Watchlist</span>
+          <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
         </div>
 
-        <!-- Drawer Content -->
-        <div id="drawerAlertList" class="flex-1 overflow-y-auto p-4 space-y-3">
-          <!-- Injected dynamically -->
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Watchlist Manager Modal -->
-  <div id="watchlistModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-    <div class="relative w-full max-w-lg rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl p-6">
-      <div class="flex items-center justify-between pb-4 border-b border-slate-800">
         <div class="flex items-center gap-2">
-          <i data-lucide="list-filter" class="w-5 h-5 text-indigo-400"></i>
-          <h3 class="text-lg font-bold text-white">Manage Scanner Watchlist</h3>
-        </div>
-        <button onclick="closeWatchlistModal()" class="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
-          <i data-lucide="x" class="w-5 h-5"></i>
-        </button>
-      </div>
-
-      <!-- Add Ticker Form -->
-      <form onsubmit="handleAddToWatchlist(event)" class="mt-5">
-        <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-2">
-          Add Stock Ticker Symbol
-        </label>
-        <div class="flex gap-2">
-          <input
-            id="inputNewTicker"
-            type="text"
-            placeholder="e.g. NVDA, TSLA, RELIANCE.NS, BTC-USD"
-            class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 uppercase font-mono"
-          />
-          <button type="submit" class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm transition-colors">
+          <button onclick="openAddTickerModal()" title="Add Symbol" class="p-1 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors">
             <i data-lucide="plus" class="w-4 h-4"></i>
-            Add
+          </button>
+          <button onclick="triggerScannerRefresh()" title="Refresh All Scans" class="p-1 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors">
+            <i data-lucide="refresh-cw" id="sideRefreshIcon" class="w-3.5 h-3.5"></i>
+          </button>
+          <button onclick="toggleAlertsList()" title="Alerts History" class="p-1 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors relative">
+            <i data-lucide="bell" class="w-3.5 h-3.5"></i>
+            <span id="sideAlertDot" class="hidden absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-rose-500"></span>
           </button>
         </div>
-        <p id="watchlistError" class="text-xs text-rose-400 mt-2 hidden"></p>
-      </form>
+      </div>
 
-      <!-- Watchlist Items -->
-      <div class="mt-6">
-        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-3">
-          Currently Monitored
-        </span>
-        <div id="watchlistItemsList" class="max-h-60 overflow-y-auto space-y-2 pr-1">
-          <!-- Injected dynamically -->
+      <!-- Watchlist Columns Header -->
+      <div class="px-4 py-2 border-b border-slate-200 dark:border-[#2a2e39] grid grid-cols-12 text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider bg-slate-50 dark:bg-[#1a1e28]">
+        <span class="col-span-5">Symbol</span>
+        <span class="col-span-4 text-right">Last</span>
+        <span class="col-span-3 text-right">Chg%</span>
+      </div>
+
+      <!-- Watchlist Scrollable List -->
+      <div class="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-[#262b37]">
+        <!-- INDICES SECTION -->
+        <div>
+          <div class="px-4 py-1.5 text-[10px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase bg-slate-100/60 dark:bg-[#181c25] flex items-center justify-between">
+            <span>Indices</span>
+            <i data-lucide="chevron-down" class="w-3 h-3"></i>
+          </div>
+          <div id="indicesList" class="text-xs">
+            <!-- Dynamic Indices -->
+          </div>
+        </div>
+
+        <!-- STOCKS SECTION -->
+        <div>
+          <div class="px-4 py-1.5 text-[10px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase bg-slate-100/60 dark:bg-[#181c25] flex items-center justify-between">
+            <span>Breakout Watchlist</span>
+            <span id="activePatternCountTag" class="text-[9px] bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 px-1.5 py-0.2 rounded font-mono">11</span>
+          </div>
+          <div id="stocksList" class="text-xs">
+            <!-- Dynamic Stocks -->
+          </div>
         </div>
       </div>
+
+      <!-- BOTTOM SIDEBAR: ACTIVE STOCK DETAILS & PATTERN STATS -->
+      <div class="border-t border-slate-200 dark:border-[#2a2e39] p-4 bg-white dark:bg-[#181c25] flex flex-col gap-3 shrink-0">
+        <!-- Stock Details Header -->
+        <div class="flex items-start justify-between">
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="statTickerSymbol" class="text-xl font-black text-slate-900 dark:text-white">TCS</span>
+              <span id="statPatternPill" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800/60 uppercase">
+                Ascending Triangle
+              </span>
+            </div>
+            <p id="statCompanyName" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Tata Consultancy Services Limited • NSE
+            </p>
+          </div>
+        </div>
+
+        <!-- Price Display -->
+        <div class="flex items-baseline gap-2">
+          <span id="statPrice" class="text-2xl font-black text-slate-900 dark:text-white">$2,498.50</span>
+          <span id="statChange" class="text-xs font-bold text-emerald-600 dark:text-emerald-400">+2.8 (+0.11%)</span>
+        </div>
+
+        <!-- Proximity Gauge -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-[11px] font-medium text-slate-500 dark:text-slate-400">
+            <span>Breakout Proximity</span>
+            <span id="statProximityText" class="font-bold text-amber-600 dark:text-amber-400">0.78% away</span>
+          </div>
+          <div class="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+            <div id="statProximityBar" class="h-full rounded-full bg-amber-500 transition-all duration-300" style="width: 82%;"></div>
+          </div>
+        </div>
+
+        <!-- Target & Resistance Grid -->
+        <div class="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-100 dark:border-slate-800">
+          <div>
+            <span class="text-[10px] uppercase font-bold text-slate-400 block">Breakout Target</span>
+            <span id="statBreakoutTarget" class="font-mono font-bold text-sky-600 dark:text-sky-400">$2,550.00</span>
+          </div>
+          <div>
+            <span class="text-[10px] uppercase font-bold text-slate-400 block">Support Floor</span>
+            <span id="statSupportFloor" class="font-mono font-bold text-emerald-600 dark:text-emerald-400">$2,430.00</span>
+          </div>
+          <div>
+            <span class="text-[10px] uppercase font-bold text-slate-400 block">Volume Multiplier</span>
+            <span id="statVolumeMult" class="font-mono font-bold text-rose-600 dark:text-rose-400">1.8x Avg</span>
+          </div>
+          <div>
+            <span class="text-[10px] uppercase font-bold text-slate-400 block">Pattern Fit</span>
+            <span id="statPatternFit" class="font-mono font-bold text-blue-600 dark:text-blue-400">75% R²</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ADD SYMBOL MODAL -->
+  <div id="addSymbolModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+    <div class="bg-white dark:bg-[#1e222d] border border-slate-200 dark:border-[#2a2e39] rounded-2xl w-full max-w-md p-5 shadow-2xl">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-[#2a2e39]">
+        <h3 class="font-bold text-sm text-slate-900 dark:text-white">Add Stock Symbol to Watchlist</h3>
+        <button onclick="closeAddTickerModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <form onsubmit="handleAddTicker(event)" class="mt-4 space-y-3">
+        <input
+          id="inputTicker"
+          type="text"
+          placeholder="e.g. NVDA, TCS.NS, RELIANCE.NS, TSLA"
+          class="w-full bg-slate-50 dark:bg-[#131722] border border-slate-200 dark:border-[#2a2e39] rounded-xl px-4 py-2.5 text-sm uppercase font-mono text-slate-900 dark:text-white focus:outline-none focus:border-blue-600"
+        />
+        <button type="submit" class="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-colors">
+          Add to Watchlist & Scan
+        </button>
+      </form>
     </div>
   </div>
 
-  <!-- Dashboard Core Script -->
+  <!-- SCRIPT -->
   <script>
+    // State
     let activePatterns = [];
-    let alerts = [];
-    let currentFilter = 'ALL';
-    let globalTimeframe = '1d';
-    let modalTimeframe = '1d';
-    let currentModalPattern = null;
-    let currentModalCandles = [];
-    let hoveredCandle = null;
+    let currentSymbol = 'TCS.NS';
+    let currentTimeframe = '1d';
+    let chartInstance = null;
+    let candleSeries = null;
+    let volumeSeries = null;
+    let upperLineSeries = null;
+    let lowerLineSeries = null;
+    let breakoutLineSeries = null;
+    let isDarkMode = false;
+    let cachedCandles = [];
 
-    // Initialize Dashboard
+    // Indices preset
+    const presetIndices = [
+      { symbol: 'NIFTY 50', price: '25,030.35', chg: '+493.75', chgPct: '+2.01%', isUp: true },
+      { symbol: 'BANK NIFTY', price: '59,086.00', chg: '+1,312.35', chgPct: '+2.27%', isUp: true },
+      { symbol: 'SENSEX', price: '81,028.02', chg: '+1,718.01', chgPct: '+2.17%', isUp: true },
+      { symbol: 'SPX', price: '7,376.86', chg: '+23.13', chgPct: '+0.31%', isUp: true },
+    ];
+
     async function init() {
-      await fetchAllData();
-      lucide.createIcons();
-      // Auto-poll every 6 seconds
-      setInterval(fetchAllData, 6000);
+      // Check saved theme
+      if (localStorage.getItem('tv_theme') === 'dark' || window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.classList.add('dark');
+        isDarkMode = true;
+      }
+      updateThemeIcon();
 
-      document.getElementById('searchInput').addEventListener('input', () => {
-        renderGrid();
-      });
+      initChart();
+      await fetchWatchlistAndScan();
+      renderIndices();
+      lucide.createIcons();
+
+      // Auto poll every 10 seconds
+      setInterval(fetchWatchlistAndScan, 10000);
     }
 
-    async function setGlobalTimeframe(tf) {
-      globalTimeframe = tf;
-      document.querySelectorAll('.tf-btn').forEach(btn => {
-        if (btn.getAttribute('data-tf') === tf) {
-          btn.className = 'tf-btn text-xs px-2.5 py-1 rounded-lg font-semibold text-white bg-indigo-600 shadow transition-all';
-        } else {
-          btn.className = 'tf-btn text-xs px-2.5 py-1 rounded-lg font-semibold text-slate-400 hover:text-white transition-all';
+    // Initialize TradingView Lightweight Charts
+    function initChart() {
+      const container = document.getElementById('chartContainer');
+      if (!container) return;
+
+      const bg = isDarkMode ? '#131722' : '#ffffff';
+      const text = isDarkMode ? '#787b86' : '#787b86';
+      const grid = isDarkMode ? '#1e222d' : '#f0f3fa';
+
+      chartInstance = LightweightCharts.createChart(container, {
+        width: container.clientWidth,
+        height: container.clientHeight,
+        layout: {
+          background: { type: 'solid', color: bg },
+          textColor: text,
+          fontSize: 11,
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, sans-serif',
+        },
+        grid: {
+          vertLines: { color: grid },
+          horzLines: { color: grid },
+        },
+        crosshair: {
+          mode: LightweightCharts.CrosshairMode.Normal,
+          vertLine: {
+            color: '#758696',
+            width: 1,
+            style: LightweightCharts.LineStyle.Dashed,
+            labelBackgroundColor: '#2962ff',
+          },
+          horzLine: {
+            color: '#758696',
+            width: 1,
+            style: LightweightCharts.LineStyle.Dashed,
+            labelBackgroundColor: '#2962ff',
+          },
+        },
+        rightPriceScale: {
+          borderColor: isDarkMode ? '#2a2e39' : '#e0e3eb',
+          autoScale: true,
+          scaleMargins: {
+            top: 0.1,
+            bottom: 0.25,
+          },
+        },
+        timeScale: {
+          borderColor: isDarkMode ? '#2a2e39' : '#e0e3eb',
+          timeVisible: true,
+          secondsVisible: false,
+          shiftVisibleRangeOnNewBar: true,
+        },
+        handleScroll: {
+          mouseWheel: true,
+          pressedMouseMove: true,
+          horzTouchDrag: true,
+          vertTouchDrag: true,
+        },
+        handleScale: {
+          axisPressedMouseMove: true,
+          mouseWheel: true,
+          pinch: true,
+        },
+      });
+
+      // Candlesticks (TradingView Colors: #089981 Green, #f23645 Red)
+      candleSeries = chartInstance.addCandlestickSeries({
+        upColor: '#089981',
+        downColor: '#f23645',
+        borderVisible: false,
+        wickUpColor: '#089981',
+        wickDownColor: '#f23645',
+      });
+
+      // Volume series
+      volumeSeries = chartInstance.addHistogramSeries({
+        color: '#26a69a',
+        priceFormat: { type: 'volume' },
+        priceScaleId: '',
+      });
+
+      volumeSeries.priceScale().applyOptions({
+        scaleMargins: {
+          top: 0.8,
+          bottom: 0,
+        },
+      });
+
+      // Trendlines
+      upperLineSeries = chartInstance.addLineSeries({
+        color: '#f23645',
+        lineWidth: 2,
+        title: 'Resistance',
+        priceLineVisible: false,
+      });
+
+      lowerLineSeries = chartInstance.addLineSeries({
+        color: '#089981',
+        lineWidth: 2,
+        title: 'Support',
+        priceLineVisible: false,
+      });
+
+      breakoutLineSeries = chartInstance.addLineSeries({
+        color: '#2962ff',
+        lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Dashed,
+        title: 'Breakout Level',
+        priceLineVisible: true,
+      });
+
+      // Crosshair HUD tracker
+      chartInstance.subscribeCrosshairMove(param => {
+        if (!param.time || !param.seriesData.get(candleSeries)) {
+          return;
+        }
+        const data = param.seriesData.get(candleSeries);
+        if (data) {
+          document.getElementById('hudOpen').innerText = data.open?.toFixed(2);
+          document.getElementById('hudHigh').innerText = data.high?.toFixed(2);
+          document.getElementById('hudLow').innerText = data.low?.toFixed(2);
+          document.getElementById('hudClose').innerText = data.close?.toFixed(2);
+          
+          const isUp = data.close >= data.open;
+          document.getElementById('hudClose').className = isUp ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
+        }
+        const vData = param.seriesData.get(volumeSeries);
+        if (vData) {
+          document.getElementById('hudVol').innerText = (vData.value / 1e6).toFixed(2) + 'M';
         }
       });
 
-      // Update backend scanner active timeframe
-      await fetch('/api/scanner/timeframe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ timeframe: tf })
+      // Resize observer
+      window.addEventListener('resize', () => {
+        if (chartInstance && container) {
+          chartInstance.applyOptions({
+            width: container.clientWidth,
+            height: container.clientHeight,
+          });
+        }
       });
-
-      manualRefresh();
     }
 
-    async function fetchAllData() {
+    // ZOOM IN TIMELINE
+    function zoomInTimeline() {
+      if (!chartInstance) return;
+      const timeScale = chartInstance.timeScale();
+      const logicalRange = timeScale.getVisibleLogicalRange();
+      if (!logicalRange) return;
+
+      const barsCount = logicalRange.to - logicalRange.from;
+      const zoomFactor = 0.2; // 20% zoom in
+      const delta = barsCount * zoomFactor;
+
+      timeScale.setVisibleLogicalRange({
+        from: logicalRange.from + delta / 2,
+        to: logicalRange.to - delta / 2,
+      });
+    }
+
+    // ZOOM OUT TIMELINE
+    function zoomOutTimeline() {
+      if (!chartInstance) return;
+      const timeScale = chartInstance.timeScale();
+      const logicalRange = timeScale.getVisibleLogicalRange();
+      if (!logicalRange) return;
+
+      const barsCount = logicalRange.to - logicalRange.from;
+      const zoomFactor = 0.25; // 25% zoom out
+      const delta = barsCount * zoomFactor;
+
+      timeScale.setVisibleLogicalRange({
+        from: logicalRange.from - delta / 2,
+        to: logicalRange.to + delta / 2,
+      });
+    }
+
+    // RESET TIMELINE ZOOM (FIT ALL CANDLES)
+    function resetTimelineZoom() {
+      if (!chartInstance) return;
+      chartInstance.timeScale().fitContent();
+    }
+
+    // Fetch watchlist and active pattern scanner
+    async function fetchWatchlistAndScan() {
       try {
-        const [patRes, alertRes, statRes] = await Promise.all([
-          fetch('/api/patterns/active').then(r => r.json()),
+        const [patRes, alertRes] = await Promise.all([
+          fetch(`/api/patterns/active`).then(r => r.json()),
           fetch('/api/alerts').then(r => r.json()),
-          fetch('/api/scanner/status').then(r => r.json())
         ]);
 
         activePatterns = patRes.patterns || [];
-        alerts = alertRes.alerts || [];
+        renderWatchlist();
 
-        updateMetrics();
-        renderGrid();
-        renderAlertDrawer();
+        // Update alert dot
+        const dot = document.getElementById('sideAlertDot');
+        if (alertRes.alerts && alertRes.alerts.length > 0) {
+          dot.classList.remove('hidden');
+        } else {
+          dot.classList.add('hidden');
+        }
 
-        if (statRes && statRes.totalTracked) {
-          document.getElementById('navWatchlistCount').innerText = `Monitoring ${statRes.totalTracked} Stocks`;
+        // If no chart loaded yet or current symbol changed, load current symbol
+        if (cachedCandles.length === 0 && activePatterns.length > 0) {
+          selectStock(activePatterns[0].symbol);
         }
       } catch (err) {
-        console.error('Failed to fetch dashboard data:', err);
+        console.error('Watchlist fetch error:', err);
       }
     }
 
-    function updateMetrics() {
-      document.getElementById('metricTotalPatterns').innerText = activePatterns.length;
-      document.getElementById('metricApproaching').innerText = activePatterns.filter(p => p.proximityPercent <= 1.5).length;
-      document.getElementById('metricVolumeSurge').innerText = activePatterns.filter(p => p.hasVolumeSurge).length;
-      document.getElementById('metricConfirmed').innerText = activePatterns.filter(p => p.status === 'CONFIRMED_BREAKOUT').length;
+    // Select & Load Stock into Chart
+    async function selectStock(symbol) {
+      currentSymbol = symbol;
+      document.getElementById('headerSymbol').innerText = symbol.replace('.NS', '');
+      document.getElementById('headerStockAvatar').innerText = symbol.replace('.NS', '').slice(0, 3);
+      document.getElementById('statTickerSymbol').innerText = symbol.replace('.NS', '');
+      document.getElementById('statCompanyName').innerText = `${symbol} • ${symbol.includes('.NS') ? 'NSE' : 'NASDAQ'}`;
 
-      const badge = document.getElementById('alertCountBadge');
-      if (alerts.length > 0) {
-        badge.innerText = alerts.length;
-        badge.classList.remove('hidden');
-      } else {
-        badge.classList.add('hidden');
-      }
-    }
+      try {
+        const res = await fetch(`/api/patterns/scan/${encodeURIComponent(symbol)}?timeframe=${currentTimeframe}`).then(r => r.json());
+        if (!res || !res.candles) return;
 
-    function setFilter(type) {
-      currentFilter = type;
-      document.querySelectorAll('.filter-pill').forEach(btn => {
-        if (btn.getAttribute('data-filter') === type) {
-          btn.className = 'filter-pill text-xs px-3 py-2 rounded-xl font-medium transition-all bg-indigo-600 text-white shadow-md shadow-indigo-600/30';
+        cachedCandles = res.candles;
+
+        // Populate Candlesticks
+        const cData = res.candles.map(c => ({
+          time: c.time,
+          open: c.open,
+          high: c.high,
+          low: c.low,
+          close: c.close,
+        }));
+        candleSeries.setData(cData);
+
+        // Populate Volume
+        const vData = res.candles.map(c => ({
+          time: c.time,
+          value: c.volume,
+          color: c.close >= c.open ? 'rgba(8, 153, 129, 0.4)' : 'rgba(242, 54, 69, 0.4)',
+        }));
+        volumeSeries.setData(vData);
+
+        const latest = res.candles[res.candles.length - 1];
+        const prev = res.candles[res.candles.length - 2] || latest;
+        const chg = latest.close - prev.close;
+        const chgPct = (chg / prev.close) * 100;
+        const isUp = chg >= 0;
+
+        document.getElementById('quickBuyPrice').innerText = latest.close.toFixed(2);
+        document.getElementById('quickSellPrice').innerText = (latest.close - 0.5).toFixed(2);
+        document.getElementById('statPrice').innerText = `$${latest.close.toFixed(2)}`;
+        document.getElementById('statChange').innerText = `${isUp ? '+' : ''}${chg.toFixed(2)} (${isUp ? '+' : ''}${chgPct.toFixed(2)}%)`;
+        document.getElementById('statChange').className = `text-xs font-bold ${isUp ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`;
+
+        // Populate Pattern Overlays
+        if (res.hasPattern && res.pattern) {
+          const p = res.pattern;
+          document.getElementById('headerPatternName').innerText = p.patternType.replace(/_/g, ' ');
+          document.getElementById('statPatternPill').innerText = p.patternType.replace(/_/g, ' ');
+          document.getElementById('quickProximityText').innerText = `${p.proximityPercent.toFixed(2)}% to Breakout`;
+          document.getElementById('statProximityText').innerText = `${p.proximityPercent.toFixed(2)}% away`;
+          document.getElementById('statBreakoutTarget').innerText = `$${p.breakoutLevel.toFixed(2)}`;
+          document.getElementById('statSupportFloor').innerText = `$${p.supportLevel.toFixed(2)}`;
+          document.getElementById('statVolumeMult').innerText = `${p.volumeMultiplier}x ${p.hasVolumeSurge ? '🔥' : ''}`;
+          document.getElementById('statPatternFit').innerText = `${p.confidenceScore}% R²`;
+
+          const pWidth = Math.max(10, Math.min(100, 100 - p.proximityPercent * 20));
+          document.getElementById('statProximityBar').style.width = `${pWidth}%`;
+
+          // Safe line time bounds
+          const safeStartTime = res.candles[Math.max(0, p.upperLine.startIndex)].time;
+          const safeEndTime = res.candles[Math.min(res.candles.length - 1, p.upperLine.endIndex)].time;
+
+          upperLineSeries.setData([
+            { time: safeStartTime, value: p.upperLine.startPrice },
+            { time: safeEndTime, value: p.upperLine.endPrice },
+          ]);
+
+          lowerLineSeries.setData([
+            { time: safeStartTime, value: p.lowerLine.startPrice },
+            { time: safeEndTime, value: p.lowerLine.endPrice },
+          ]);
+
+          breakoutLineSeries.setData([
+            { time: safeStartTime, value: p.breakoutLevel },
+            { time: safeEndTime, value: p.breakoutLevel },
+          ]);
+
+          // Marker points
+          const markers = [
+            ...p.upperTouches.map(t => ({
+              time: res.candles[Math.min(res.candles.length - 1, t.index)].time,
+              position: 'aboveBar',
+              color: '#f23645',
+              shape: 'arrowDown',
+              text: `R ${t.price.toFixed(1)}`,
+            })),
+            ...p.lowerTouches.map(t => ({
+              time: res.candles[Math.min(res.candles.length - 1, t.index)].time,
+              position: 'belowBar',
+              color: '#089981',
+              shape: 'arrowUp',
+              text: `S ${t.price.toFixed(1)}`,
+            })),
+          ];
+          markers.sort((a, b) => a.time - b.time);
+          candleSeries.setMarkers(markers);
         } else {
-          btn.className = 'filter-pill text-xs px-3 py-2 rounded-xl font-medium transition-all bg-slate-900 text-slate-400 hover:text-white';
+          upperLineSeries.setData([]);
+          lowerLineSeries.setData([]);
+          breakoutLineSeries.setData([]);
+          candleSeries.setMarkers([]);
+        }
+
+        resetTimelineZoom();
+      } catch (err) {
+        console.error('Error loading stock:', err);
+      }
+    }
+
+    // Change Timeframe
+    async function changeTimeframe(tf) {
+      currentTimeframe = tf;
+      document.querySelectorAll('.tf-btn').forEach(btn => {
+        if (btn.getAttribute('data-tf') === tf) {
+          btn.className = 'tf-btn px-2 py-1 rounded text-white bg-blue-600 shadow-sm transition-all';
+        } else {
+          btn.className = 'tf-btn px-2 py-1 rounded text-slate-600 dark:text-slate-400 hover:text-blue-600 transition-colors';
         }
       });
-      renderGrid();
+      await selectStock(currentSymbol);
     }
 
-    function renderGrid() {
-      const grid = document.getElementById('patternsGrid');
-      const search = document.getElementById('searchInput').value.trim().toLowerCase();
-      const sortBy = document.getElementById('sortSelect').value;
+    // Render Watchlist
+    function renderWatchlist() {
+      const container = document.getElementById('stocksList');
+      if (!container) return;
 
-      let filtered = activePatterns.filter(p => {
-        const matchesSearch = p.symbol.toLowerCase().includes(search);
-        const matchesType = currentFilter === 'ALL' || p.patternType === currentFilter;
-        return matchesSearch && matchesType;
-      });
-
-      if (sortBy === 'PROXIMITY') {
-        filtered.sort((a, b) => a.proximityPercent - b.proximityPercent);
-      } else if (sortBy === 'CONFIDENCE') {
-        filtered.sort((a, b) => b.confidenceScore - a.confidenceScore);
-      } else {
-        filtered.sort((a, b) => a.symbol.localeCompare(b.symbol));
-      }
-
-      if (filtered.length === 0) {
-        grid.innerHTML = `
-          <div class="col-span-full py-20 rounded-3xl bg-slate-950 border border-slate-800/80 flex flex-col items-center justify-center text-center p-8">
-            <i data-lucide="layers" class="w-12 h-12 text-slate-600 mb-3"></i>
-            <h3 class="text-lg font-bold text-white">No Matching Breakout Patterns</h3>
-            <p class="text-sm text-slate-400 mt-1 max-w-md">Try modifying your filter or trigger a refresh scan.</p>
-          </div>
-        `;
-        lucide.createIcons();
-        return;
-      }
-
-      grid.innerHTML = filtered.map(p => {
-        const pBadge = getPatternBadge(p.patternType);
-        const sBadge = getStatusBadge(p.status);
-        const proximityColor = p.proximityPercent <= 0.5 ? 'bg-emerald-500' : (p.proximityPercent <= 1.5 ? 'bg-amber-400' : 'bg-indigo-500');
-        const proximityText = p.proximityPercent <= 1.0 ? 'text-emerald-400 font-bold' : 'text-amber-400 font-semibold';
+      container.innerHTML = activePatterns.map(p => {
+        const isCurrent = p.symbol === currentSymbol;
+        const isUp = p.direction === 'BULLISH';
+        const chgColor = isUp ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
 
         return `
-          <div class="group relative rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950 border border-slate-800/80 hover:border-indigo-500/50 p-5 transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/10">
-            <!-- Header -->
-            <div class="flex items-start justify-between gap-3 mb-3">
+          <div onclick="selectStock('${p.symbol}')" class="px-4 py-2.5 grid grid-cols-12 items-center cursor-pointer transition-colors ${isCurrent ? 'bg-blue-50 dark:bg-blue-950/40 border-l-2 border-blue-600' : 'hover:bg-slate-100/60 dark:hover:bg-[#252a36]'}">
+            <div class="col-span-5 flex items-center gap-2 overflow-hidden">
+              <span class="w-1.5 h-1.5 rounded-full ${p.proximityPercent <= 1.0 ? 'bg-amber-500 animate-ping' : 'bg-slate-400'}"></span>
               <div>
-                <div class="flex items-center gap-2">
-                  <span class="text-xl font-black text-white tracking-tight">${p.symbol}</span>
-                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-sky-400 border border-slate-700 uppercase font-mono">${p.timeframe || globalTimeframe}</span>
-                  <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full border ${pBadge.color}">
-                    ${pBadge.label}
-                  </span>
-                </div>
-                <p class="text-xs text-slate-400 mt-1">
-                  Confidence: <strong class="text-indigo-400">${p.confidenceScore}%</strong> Fit
-                </p>
-              </div>
-
-              <span class="text-[11px] px-2.5 py-1 rounded-full ${sBadge.color}">
-                ${sBadge.label}
-              </span>
-            </div>
-
-            <!-- Price & Breakout Grid -->
-            <div class="grid grid-cols-2 gap-3 my-4 p-3 rounded-xl bg-slate-950/60 border border-slate-800/60">
-              <div>
-                <span class="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">Current Price</span>
-                <div class="text-lg font-bold text-slate-100">$${p.currentPrice.toFixed(2)}</div>
-              </div>
-              <div>
-                <span class="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">Breakout Level</span>
-                <div class="text-lg font-bold text-sky-400">$${p.breakoutLevel.toFixed(2)}</div>
+                <span class="font-bold text-slate-900 dark:text-white block truncate">${p.symbol.replace('.NS', '')}</span>
+                <span class="text-[10px] text-slate-400 block truncate">${p.patternType.replace(/_/g, ' ')}</span>
               </div>
             </div>
-
-            <!-- Proximity Progress Bar -->
-            <div class="mb-4">
-              <div class="flex justify-between text-xs mb-1.5 font-medium">
-                <span class="text-slate-400">Proximity to Breakout:</span>
-                <span class="${proximityText}">${p.proximityPercent.toFixed(2)}% away</span>
-              </div>
-              <div class="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
-                <div class="h-full rounded-full transition-all duration-500 ${proximityColor}" style="width: ${Math.max(10, Math.min(100, 100 - p.proximityPercent * 20))}%"></div>
-              </div>
+            <div class="col-span-4 text-right font-mono font-medium text-slate-800 dark:text-slate-200">
+              $${p.currentPrice.toFixed(2)}
             </div>
-
-            <!-- Volume & Action -->
-            <div class="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800/60 mb-4">
-              <div>
-                ${p.hasVolumeSurge ? 
-                  `<span class="inline-flex items-center gap-1 text-rose-400 font-semibold bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20">
-                     🔥 ${p.volumeMultiplier}x Vol Surge
-                   </span>` : 
-                  `<span class="text-slate-400 bg-slate-800/50 px-2 py-0.5 rounded-md">${p.volumeMultiplier}x Volume</span>`
-                }
-              </div>
-              <span class="text-slate-400 font-mono">Floor: $${p.supportLevel.toFixed(2)}</span>
+            <div class="col-span-3 text-right font-mono font-bold ${chgColor}">
+              ${p.proximityPercent.toFixed(1)}%
             </div>
-
-            <button onclick="inspectPattern('${p.symbol}')" class="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm transition-all duration-200 shadow-lg shadow-indigo-600/20 active:scale-[0.98]">
-              <i data-lucide="eye" class="w-4 h-4"></i>
-              Inspect Live Chart & Overlays
-            </button>
           </div>
         `;
       }).join('');
-
-      lucide.createIcons();
     }
 
-    function getPatternBadge(type) {
-      switch (type) {
-        case 'ASCENDING_TRIANGLE': return { label: 'Ascending Triangle', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' };
-        case 'DESCENDING_TRIANGLE': return { label: 'Descending Triangle', color: 'bg-rose-500/10 text-rose-400 border-rose-500/20' };
-        case 'SYMMETRICAL_TRIANGLE': return { label: 'Symmetrical Triangle', color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' };
-        case 'BOX_PATTERN': return { label: 'Box / Darvas', color: 'bg-amber-500/10 text-amber-400 border-amber-500/20' };
-        default: return { label: type, color: 'bg-slate-500/10 text-slate-400 border-slate-500/20' };
-      }
-    }
-
-    function getStatusBadge(status) {
-      switch (status) {
-        case 'CONFIRMED_BREAKOUT': return { label: '🚀 Confirmed Breakout', color: 'bg-emerald-500 text-slate-950 font-bold' };
-        case 'AT_BREAKOUT_LEVEL': return { label: '⚡ At Breakout Point', color: 'bg-sky-500 text-slate-950 font-semibold' };
-        case 'APPROACHING_BREAKOUT': return { label: '🔔 Approaching Breakout', color: 'bg-amber-500 text-slate-950 font-medium' };
-        case 'CONFIRMED_BREAKDOWN': return { label: '⚠️ Breakdown', color: 'bg-rose-500 text-white font-bold' };
-        default: return { label: 'In Formation', color: 'bg-slate-800 text-slate-400' };
-      }
-    }
-
-    // Modal & Chart Rendering
-    async function inspectPattern(symbol) {
-      const p = activePatterns.find(x => x.symbol === symbol);
-      if (!p) return;
-
-      currentModalPattern = p;
-      modalTimeframe = p.timeframe || globalTimeframe;
-      updateModalTfButtons();
-
-      document.getElementById('modalSymbol').innerText = p.symbol;
-      document.getElementById('modalPrice').innerText = `$${p.currentPrice.toFixed(2)}`;
-      document.getElementById('modalBreakoutLevel').innerText = `$${p.breakoutLevel.toFixed(2)}`;
-      document.getElementById('modalProximity').innerText = `${p.proximityPercent.toFixed(2)}%`;
-      document.getElementById('modalVolume').innerText = `${p.volumeMultiplier}x ${p.hasVolumeSurge ? '🔥' : ''}`;
-
-      document.getElementById('diagUpperSlope').innerText = p.upperLine.slope.toFixed(4);
-      document.getElementById('diagUpperR2').innerText = `${(p.upperLine.rSquared * 100).toFixed(1)}%`;
-      document.getElementById('diagUpperTouches').innerText = `${p.upperTouches.length} peaks`;
-
-      document.getElementById('diagLowerSlope').innerText = p.lowerLine.slope.toFixed(4);
-      document.getElementById('diagLowerR2').innerText = `${(p.lowerLine.rSquared * 100).toFixed(1)}%`;
-      document.getElementById('diagLowerTouches').innerText = `${p.lowerTouches.length} troughs`;
-
-      document.getElementById('diagConfidence').innerText = `${p.confidenceScore}%`;
-      document.getElementById('diagBias').innerText = p.direction;
-      document.getElementById('diagSupport').innerText = `$${p.supportLevel.toFixed(2)}`;
-
-      document.getElementById('chartModal').classList.remove('hidden');
-
-      // Fetch candles for modalTimeframe and draw on canvas
-      try {
-        const res = await fetch(`/api/stocks/${encodeURIComponent(symbol)}/chart?timeframe=${modalTimeframe}`).then(r => r.json());
-        currentModalCandles = res.candles || [];
-        drawCanvasChart();
-      } catch (err) {
-        console.error('Failed to load chart:', err);
-      }
-    }
-
-    async function switchModalTimeframe(tf) {
-      if (!currentModalPattern) return;
-      modalTimeframe = tf;
-      updateModalTfButtons();
-
-      try {
-        const res = await fetch(`/api/patterns/scan/${encodeURIComponent(currentModalPattern.symbol)}?timeframe=${tf}`).then(r => r.json());
-        if (res && res.candles) {
-          currentModalCandles = res.candles;
-          if (res.hasPattern && res.pattern) {
-            currentModalPattern = res.pattern;
-            document.getElementById('modalPatternBadge').innerText = res.pattern.patternType.replace(/_/g, ' ');
-            document.getElementById('modalStatusBadge').innerText = res.pattern.status.replace(/_/g, ' ');
-            document.getElementById('modalPrice').innerText = `$${res.pattern.currentPrice.toFixed(2)}`;
-            document.getElementById('modalBreakoutLevel').innerText = `$${res.pattern.breakoutLevel.toFixed(2)}`;
-            document.getElementById('modalProximity').innerText = `${res.pattern.proximityPercent.toFixed(2)}%`;
-            document.getElementById('modalVolume').innerText = `${res.pattern.volumeMultiplier}x ${res.pattern.hasVolumeSurge ? '🔥' : ''}`;
-
-            document.getElementById('diagUpperSlope').innerText = res.pattern.upperLine.slope.toFixed(4);
-            document.getElementById('diagUpperR2').innerText = `${(res.pattern.upperLine.rSquared * 100).toFixed(1)}%`;
-            document.getElementById('diagUpperTouches').innerText = `${res.pattern.upperTouches.length} peaks`;
-
-            document.getElementById('diagLowerSlope').innerText = res.pattern.lowerLine.slope.toFixed(4);
-            document.getElementById('diagLowerR2').innerText = `${(res.pattern.lowerLine.rSquared * 100).toFixed(1)}%`;
-            document.getElementById('diagLowerTouches').innerText = `${res.pattern.lowerTouches.length} troughs`;
-
-            document.getElementById('diagConfidence').innerText = `${res.pattern.confidenceScore}%`;
-            document.getElementById('diagBias').innerText = res.pattern.direction;
-            document.getElementById('diagSupport').innerText = `$${res.pattern.supportLevel.toFixed(2)}`;
-          }
-          drawCanvasChart();
-        }
-      } catch (err) {
-        console.error('Failed to switch modal timeframe:', err);
-      }
-    }
-
-    function updateModalTfButtons() {
-      document.querySelectorAll('.modal-tf-btn').forEach(btn => {
-        if (btn.getAttribute('data-modal-tf') === modalTimeframe) {
-          btn.className = 'modal-tf-btn text-xs px-2.5 py-1 rounded-lg font-semibold text-white bg-indigo-600 shadow transition-all';
-        } else {
-          btn.className = 'modal-tf-btn text-xs px-2.5 py-1 rounded-lg font-semibold text-slate-400 hover:text-white transition-all';
-        }
-      });
-    }
-
-    function closeChartModal() {
-      document.getElementById('chartModal').classList.add('hidden');
-    }
-
-    function drawCanvasChart(mousePos = null) {
-      const canvas = document.getElementById('stockCanvas');
-      if (!canvas || currentModalCandles.length === 0) return;
-
-      const ctx = canvas.getContext('2d');
-      const dpr = window.devicePixelRatio || 1;
-      const width = canvas.parentElement.clientWidth;
-      const height = 480;
-
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
-
-      ctx.scale(dpr, dpr);
-
-      const padTop = 30;
-      const padBottom = 60;
-      const padLeft = 15;
-      const padRight = 75;
-
-      const chartW = width - padLeft - padRight;
-      const chartH = height - padTop - padBottom;
-
-      const candles = currentModalCandles;
-      const pattern = currentModalPattern;
-
-      let minPrice = Infinity;
-      let maxPrice = -Infinity;
-      let maxVol = 0;
-
-      for (const c of candles) {
-        if (c.low < minPrice) minPrice = c.low;
-        if (c.high > maxPrice) maxPrice = c.high;
-        if (c.volume > maxVol) maxVol = c.volume;
-      }
-
-      if (pattern) {
-        minPrice = Math.min(minPrice, pattern.lowerLine.startPrice, pattern.lowerLine.endPrice, pattern.supportLevel);
-        maxPrice = Math.max(maxPrice, pattern.upperLine.startPrice, pattern.upperLine.endPrice, pattern.breakoutLevel);
-      }
-
-      const pMargin = (maxPrice - minPrice) * 0.05 || 1.0;
-      minPrice -= pMargin;
-      maxPrice += pMargin;
-      const pRange = maxPrice - minPrice;
-
-      const getY = price => padTop + (1 - (price - minPrice) / pRange) * chartH;
-      const count = candles.length;
-      const candleSpacing = chartW / count;
-      const candleW = Math.max(2, Math.min(10, candleSpacing * 0.7));
-      const getX = i => padLeft + i * candleSpacing + candleSpacing / 2;
-
-      // 1. Background
-      ctx.fillStyle = '#0d1117';
-      ctx.fillRect(0, 0, width, height);
-
-      // Grid lines
-      ctx.strokeStyle = 'rgba(51, 65, 85, 0.3)';
-      ctx.lineWidth = 1;
-      const steps = 5;
-      for (let i = 0; i <= steps; i++) {
-        const gY = padTop + (i / steps) * chartH;
-        ctx.beginPath();
-        ctx.moveTo(padLeft, gY);
-        ctx.lineTo(width - padRight, gY);
-        ctx.stroke();
-
-        const p = maxPrice - (i / steps) * pRange;
-        ctx.fillStyle = '#64748b';
-        ctx.font = '11px sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText(`$${p.toFixed(2)}`, width - padRight + 8, gY + 4);
-      }
-
-      // 2. Volume Bars
-      const volMaxH = chartH * 0.22;
-      for (let i = 0; i < count; i++) {
-        const c = candles[i];
-        const x = getX(i);
-        const vH = (c.volume / (maxVol || 1)) * volMaxH;
-        const vY = padTop + chartH - vH;
-
-        ctx.fillStyle = c.close >= c.open ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)';
-        ctx.fillRect(x - candleW / 2, vY, candleW, vH);
-      }
-
-      // 3. Candlesticks
-      for (let i = 0; i < count; i++) {
-        const c = candles[i];
-        const x = getX(i);
-        const isUp = c.close >= c.open;
-        const col = isUp ? '#10b981' : '#ef4444';
-
-        // Wick
-        ctx.strokeStyle = col;
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        ctx.moveTo(x, getY(c.high));
-        ctx.lineTo(x, getY(c.low));
-        ctx.stroke();
-
-        // Body
-        ctx.fillStyle = col;
-        const oY = getY(c.open);
-        const cY = getY(c.close);
-        ctx.fillRect(x - candleW / 2, Math.min(oY, cY), candleW, Math.max(1.5, Math.abs(cY - oY)));
-      }
-
-      // 4. Overlays & Trendlines
-      if (pattern) {
-        const startX = getX(Math.max(0, pattern.upperLine.startIndex));
-        const endX = getX(Math.min(count - 1, pattern.upperLine.endIndex));
-
-        // Upper Resistance (Red)
-        ctx.strokeStyle = '#f43f5e';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.moveTo(startX, getY(pattern.upperLine.startPrice));
-        ctx.lineTo(endX, getY(pattern.upperLine.endPrice));
-        ctx.stroke();
-
-        // Lower Support (Green)
-        ctx.strokeStyle = '#10b981';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.moveTo(startX, getY(pattern.lowerLine.startPrice));
-        ctx.lineTo(endX, getY(pattern.lowerLine.endPrice));
-        ctx.stroke();
-
-        // Breakout Level (Dashed Sky)
-        const breakY = getY(pattern.breakoutLevel);
-        ctx.strokeStyle = '#38bdf8';
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([5, 4]);
-        ctx.beginPath();
-        ctx.moveTo(startX, breakY);
-        ctx.lineTo(width - padRight, breakY);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        ctx.fillStyle = '#38bdf8';
-        ctx.font = 'bold 10px sans-serif';
-        ctx.fillText(`TARGET $${pattern.breakoutLevel.toFixed(2)}`, width - padRight + 8, breakY - 3);
-
-        // Pivot Touches
-        pattern.upperTouches.forEach(p => {
-          ctx.fillStyle = '#f43f5e';
-          ctx.beginPath();
-          ctx.arc(getX(p.index), getY(p.price) - 7, 4, 0, Math.PI * 2);
-          ctx.fill();
-        });
-
-        pattern.lowerTouches.forEach(p => {
-          ctx.fillStyle = '#10b981';
-          ctx.beginPath();
-          ctx.arc(getX(p.index), getY(p.price) + 7, 4, 0, Math.PI * 2);
-          ctx.fill();
-        });
-      }
-
-      // 5. Crosshair
-      if (mousePos) {
-        ctx.strokeStyle = 'rgba(99, 102, 241, 0.6)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([3, 3]);
-
-        ctx.beginPath();
-        ctx.moveTo(mousePos.x, padTop);
-        ctx.lineTo(mousePos.x, height - padBottom);
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.moveTo(padLeft, mousePos.y);
-        ctx.lineTo(width - padRight, mousePos.y);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-
-      // Time axis
-      ctx.fillStyle = '#64748b';
-      ctx.font = '10px sans-serif';
-      ctx.textAlign = 'center';
-      const step = Math.max(1, Math.floor(count / 7));
-      for (let i = 0; i < count; i += step) {
-        ctx.fillText(candles[i].dateStr || '', getX(i), height - padBottom + 18);
-      }
-    }
-
-    // Canvas Mouse Interaction
-    const canvas = document.getElementById('stockCanvas');
-    canvas.addEventListener('mousemove', e => {
-      const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-
-      drawCanvasChart({ x, y });
-
-      const padLeft = 15;
-      const padRight = 75;
-      const chartW = canvas.clientWidth - padLeft - padRight;
-      const count = currentModalCandles.length;
-      if (count === 0) return;
-
-      const idx = Math.floor((x - padLeft) / (chartW / count));
-      if (idx >= 0 && idx < count) {
-        const c = currentModalCandles[idx];
-        document.getElementById('canvasHud').innerHTML = `
-          <span class="text-white font-bold">${c.dateStr}</span>
-          <span>O: <strong class="text-white">$${c.open.toFixed(2)}</strong></span>
-          <span>H: <strong class="text-white">$${c.high.toFixed(2)}</strong></span>
-          <span>L: <strong class="text-white">$${c.low.toFixed(2)}</strong></span>
-          <span>C: <strong class="${c.close >= c.open ? 'text-emerald-400' : 'text-rose-400'}">$${c.close.toFixed(2)}</strong></span>
-          <span>Vol: <strong class="text-sky-400">${(c.volume / 1e6).toFixed(1)}M</strong></span>
-        `;
-      }
-    });
-
-    canvas.addEventListener('mouseleave', () => {
-      drawCanvasChart(null);
-      document.getElementById('canvasHud').innerHTML = `<span>Hover on chart to inspect candle coordinates</span>`;
-    });
-
-    // Alert Drawer
-    function toggleAlertDrawer() {
-      const drawer = document.getElementById('alertDrawer');
-      drawer.classList.toggle('hidden');
-    }
-
-    function renderAlertDrawer() {
-      const container = document.getElementById('drawerAlertList');
-      document.getElementById('drawerAlertCount').innerText = alerts.length;
-
-      if (alerts.length === 0) {
-        container.innerHTML = `
-          <div class="h-64 flex flex-col items-center justify-center text-center p-6 text-slate-500">
-            <i data-lucide="bell" class="w-10 h-10 mb-3 text-slate-600"></i>
-            <p class="font-semibold text-slate-400">No active alerts</p>
-            <p class="text-xs mt-1">Alerts trigger automatically when stocks enter proximity threshold (&le; 1.5%).</p>
-          </div>
-        `;
-        lucide.createIcons();
-        return;
-      }
-
-      container.innerHTML = alerts.map(a => `
-        <div onclick="selectAlertSymbol('${a.symbol}')" class="p-4 rounded-2xl bg-slate-950 border border-slate-800/90 hover:border-indigo-500/50 cursor-pointer transition-all">
-          <div class="flex items-start justify-between gap-2 mb-1.5">
-            <span class="text-base font-black text-white hover:text-indigo-400 transition-colors">${a.symbol}</span>
-            <span class="text-[10px] text-slate-500 font-mono">${new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-          </div>
-          <p class="text-xs text-slate-300 font-medium leading-relaxed mb-3">${a.message}</p>
-          <div class="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/60 font-mono">
-            <span>Target: $${a.breakoutLevel.toFixed(2)}</span>
-            <span class="${a.proximityPercent <= 1.0 ? 'text-emerald-400 font-bold' : 'text-amber-400'}">${a.proximityPercent.toFixed(2)}% away</span>
-            ${a.volumeMultiplier >= 1.5 ? `<span class="text-rose-400 font-bold">🔥 ${a.volumeMultiplier}x</span>` : ''}
-          </div>
+    // Render Indices
+    function renderIndices() {
+      const container = document.getElementById('indicesList');
+      container.innerHTML = presetIndices.map(ind => `
+        <div class="px-4 py-2 grid grid-cols-12 items-center hover:bg-slate-100/60 dark:hover:bg-[#252a36] cursor-pointer">
+          <div class="col-span-5 font-bold text-slate-800 dark:text-slate-300 truncate">${ind.symbol}</div>
+          <div class="col-span-4 text-right font-mono font-medium text-slate-700 dark:text-slate-300">${ind.price}</div>
+          <div class="col-span-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">${ind.chgPct}</div>
         </div>
       `).join('');
+    }
 
+    // Theme Toggle
+    function toggleTheme() {
+      isDarkMode = !isDarkMode;
+      if (isDarkMode) {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('tv_theme', 'dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('tv_theme', 'light');
+      }
+      updateThemeIcon();
+
+      // Update Chart Theme Colors
+      if (chartInstance) {
+        const bg = isDarkMode ? '#131722' : '#ffffff';
+        const text = isDarkMode ? '#787b86' : '#787b86';
+        const grid = isDarkMode ? '#1e222d' : '#f0f3fa';
+
+        chartInstance.applyOptions({
+          layout: {
+            background: { type: 'solid', color: bg },
+            textColor: text,
+          },
+          grid: {
+            vertLines: { color: grid },
+            horzLines: { color: grid },
+          },
+          rightPriceScale: {
+            borderColor: isDarkMode ? '#2a2e39' : '#e0e3eb',
+          },
+          timeScale: {
+            borderColor: isDarkMode ? '#2a2e39' : '#e0e3eb',
+          },
+        });
+      }
+    }
+
+    function updateThemeIcon() {
+      const icon = document.getElementById('themeIcon');
+      if (isDarkMode) {
+        icon.setAttribute('data-lucide', 'sun');
+      } else {
+        icon.setAttribute('data-lucide', 'moon');
+      }
       lucide.createIcons();
     }
 
-    function selectAlertSymbol(symbol) {
-      toggleAlertDrawer();
-      inspectPattern(symbol);
+    function toggleSidebar() {
+      const sb = document.getElementById('sidebar');
+      sb.classList.toggle('hidden');
     }
 
-    async function clearAllAlerts() {
-      await fetch('/api/alerts/clear', { method: 'POST' });
-      alerts = [];
-      updateMetrics();
-      renderAlertDrawer();
+    // Add Symbol Modal
+    function openAddTickerModal() {
+      document.getElementById('addSymbolModal').classList.remove('hidden');
+      document.getElementById('inputTicker').focus();
     }
-
-    // Watchlist Modal
-    async function openWatchlistModal() {
-      const res = await fetch('/api/scanner/watchlist').then(r => r.json());
-      const list = res.watchlist || [];
-      const container = document.getElementById('watchlistItemsList');
-
-      container.innerHTML = list.map(sym => `
-        <div class="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800/80">
-          <span class="font-bold text-white font-mono text-sm">${sym}</span>
-          <button onclick="handleRemoveFromWatchlist('${sym}')" class="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors">
-            <i data-lucide="trash-2" class="w-4 h-4"></i>
-          </button>
-        </div>
-      `).join('');
-
-      lucide.createIcons();
-      document.getElementById('watchlistModal').classList.remove('hidden');
+    function closeAddTickerModal() {
+      document.getElementById('addSymbolModal').classList.add('hidden');
     }
-
-    function closeWatchlistModal() {
-      document.getElementById('watchlistModal').classList.add('hidden');
-    }
-
-    async function handleAddToWatchlist(e) {
+    async function handleAddTicker(e) {
       e.preventDefault();
-      const input = document.getElementById('inputNewTicker');
-      const err = document.getElementById('watchlistError');
+      const input = document.getElementById('inputTicker');
       const sym = input.value.trim().toUpperCase();
       if (!sym) return;
 
-      const res = await fetch('/api/scanner/watchlist', {
+      await fetch('/api/scanner/watchlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbol: sym })
+        body: JSON.stringify({ symbol: sym }),
       });
-
-      if (res.ok) {
-        input.value = '';
-        err.classList.add('hidden');
-        openWatchlistModal();
-        manualRefresh();
-      } else {
-        err.innerText = `${sym} already in watchlist or invalid.`;
-        err.classList.remove('hidden');
-      }
+      input.value = '';
+      closeAddTickerModal();
+      await fetchWatchlistAndScan();
+      selectStock(sym);
     }
 
-    async function handleRemoveFromWatchlist(sym) {
-      await fetch(`/api/scanner/watchlist/${encodeURIComponent(sym)}`, { method: 'DELETE' });
-      openWatchlistModal();
-      manualRefresh();
-    }
-
-    async function manualRefresh() {
-      const icon = document.getElementById('refreshIcon');
+    async function triggerScannerRefresh() {
+      const icon = document.getElementById('sideRefreshIcon');
       icon.classList.add('animate-spin');
       await fetch('/api/scanner/run', { method: 'POST' });
-
       setTimeout(async () => {
-        await fetchAllData();
+        await fetchWatchlistAndScan();
         icon.classList.remove('animate-spin');
-      }, 2000);
+      }, 1500);
     }
 
-    // Boot
     window.addEventListener('DOMContentLoaded', init);
   </script>
 </body>
 </html>
-
