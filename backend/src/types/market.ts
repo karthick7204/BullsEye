@@ -45,6 +45,7 @@ export type BreakoutStatus =
 export interface PatternResult {
   id: string;
   symbol: string;
+  timeframe?: string; // '15m' | '1h' | '1d' | '1wk'
   patternType: PatternType;
   direction: BreakoutDirection;
   upperLine: Trendline;

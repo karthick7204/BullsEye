@@ -21,11 +21,20 @@ export class ScannerService {
   private activePatterns: Map<string, PatternResult> = new Map();
   private alerts: BreakoutAlert[] = [];
   private isScanning: boolean = false;
+  private currentTimeframe: '1d' | '1h' | '15m' | '1wk' = '1d';
   private lastScanTimestamp: number | null = null;
   private scanIntervalTimer: NodeJS.Timeout | null = null;
 
   constructor() {
     // Keep maximum 100 recent alerts
+  }
+
+  public getTimeframe(): string {
+    return this.currentTimeframe;
+  }
+
+  public setTimeframe(tf: '1d' | '1h' | '15m' | '1wk'): void {
+    this.currentTimeframe = tf;
   }
 
   public getWatchlist(): string[] {
@@ -70,6 +79,7 @@ export class ScannerService {
     return {
       isScanning: this.isScanning,
       lastScanTimestamp: this.lastScanTimestamp,
+      currentTimeframe: this.currentTimeframe,
       totalTracked: this.watchlist.length,
       activePatternsCount: this.activePatterns.size,
       alertsCount: this.alerts.length,
@@ -79,22 +89,27 @@ export class ScannerService {
   /**
    * Scans all symbols in the watchlist.
    */
-  public async scanAll(): Promise<{ scannedCount: number; patternsFound: number }> {
+  public async scanAll(timeframe?: '1d' | '1h' | '15m' | '1wk'): Promise<{ scannedCount: number; patternsFound: number }> {
+    if (timeframe) {
+      this.currentTimeframe = timeframe;
+    }
+    const tf = this.currentTimeframe;
+
     if (this.isScanning) {
       console.log('[Scanner] Scan already in progress, skipping.');
       return { scannedCount: 0, patternsFound: this.activePatterns.size };
     }
 
     this.isScanning = true;
-    console.log(`[Scanner] Starting scan across ${this.watchlist.length} symbols...`);
+    console.log(`[Scanner] Starting scan across ${this.watchlist.length} symbols for timeframe [${tf}]...`);
 
     let foundCount = 0;
 
     try {
       for (const symbol of this.watchlist) {
         try {
-          const candles = await fetchStockCandles(symbol, '6mo', '1d');
-          const result = analyzeStockCandles(symbol, candles);
+          const candles = await fetchStockCandles(symbol, undefined, tf);
+          const result = analyzeStockCandles(symbol, candles, tf);
 
           if (result.hasPattern && result.pattern) {
             this.activePatterns.set(symbol, result.pattern);

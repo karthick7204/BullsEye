@@ -15,15 +15,36 @@ router.get('/status', (_req: Request, res: Response) => {
  * POST /api/scanner/run
  * Manually triggers a scan across all watchlist stocks.
  */
-router.post('/run', async (_req: Request, res: Response) => {
+router.post('/run', async (req: Request, res: Response) => {
+  const timeframe = (req.body?.timeframe || req.query?.timeframe) as any;
   // Trigger scan asynchronously and return response immediately
-  scannerService.scanAll().catch((err) => {
+  scannerService.scanAll(timeframe).catch((err) => {
     console.error('[Scanner] Manual scan error:', err);
   });
 
   res.json({
-    message: 'Scanner triggered successfully',
+    message: `Scanner triggered successfully for timeframe ${timeframe || scannerService.getTimeframe()}`,
+    timeframe: timeframe || scannerService.getTimeframe(),
     timestamp: Date.now(),
+  });
+});
+
+/**
+ * POST /api/scanner/timeframe
+ * Updates active scanning timeframe.
+ */
+router.post('/timeframe', (req: Request, res: Response): any => {
+  const { timeframe } = req.body;
+  if (!timeframe || !['15m', '1h', '1d', '1wk'].includes(timeframe)) {
+    return res.status(400).json({ error: 'Valid timeframe (15m, 1h, 1d, 1wk) required' });
+  }
+
+  scannerService.setTimeframe(timeframe);
+  scannerService.scanAll(timeframe).catch(console.error);
+
+  return res.json({
+    message: `Active timeframe set to ${timeframe}`,
+    timeframe,
   });
 });
 

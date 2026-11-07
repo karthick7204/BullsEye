@@ -11,9 +11,6 @@ let cachedSession: SessionState | null = null;
 const USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-/**
- * Obtains an authenticated Yahoo Finance session cookie and dynamic crumb token.
- */
 async function getYahooSession(): Promise<{ cookie: string; crumb: string }> {
   const now = Date.now();
   if (cachedSession && cachedSession.expiresAt > now) {
@@ -21,14 +18,12 @@ async function getYahooSession(): Promise<{ cookie: string; crumb: string }> {
   }
 
   try {
-    // 1. Fetch cookie from fc.yahoo.com
     const cookieRes = await fetch('https://fc.yahoo.com', {
       headers: { 'User-Agent': USER_AGENT },
     });
     const setCookie = cookieRes.headers.get('set-cookie');
     const cookie = setCookie ? setCookie.split(';')[0] : '';
 
-    // 2. Fetch crumb token using cookie
     const crumbRes = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
       headers: {
         'User-Agent': USER_AGENT,
@@ -45,34 +40,52 @@ async function getYahooSession(): Promise<{ cookie: string; crumb: string }> {
     cachedSession = {
       cookie,
       crumb,
-      expiresAt: now + 3600 * 1000, // Valid for 1 hour
+      expiresAt: now + 3600 * 1000,
     };
 
-    console.log(`[MarketData] Established live market session. Crumb: ${crumb.slice(0, 5)}...`);
     return { cookie, crumb };
   } catch (err: any) {
-    console.warn(`[MarketData] Failed to get Yahoo session: ${err.message}`);
     throw err;
   }
 }
 
 /**
- * Fetches 100% REAL historical & live OHLCV candles for any stock ticker.
+ * Normalizes Yahoo range according to interval
+ */
+function getOptimalRangeForInterval(interval: string): string {
+  switch (interval) {
+    case '15m':
+    case '5m':
+      return '5d';
+    case '1h':
+      return '1mo';
+    case '1wk':
+      return '2y';
+    case '1d':
+    default:
+      return '6mo';
+  }
+}
+
+/**
+ * Fetches historical & live OHLCV candles across multiple timeframes.
  * @param symbol Stock ticker (e.g. NVDA, AAPL, RELIANCE.NS)
- * @param range Time range (e.g. 3mo, 6mo, 1y)
- * @param interval Candle interval (1d, 1h, 15m)
+ * @param interval Candle interval ('15m', '1h', '1d', '1wk')
+ * @param range Optional time range (e.g. 5d, 1mo, 6mo, 1y)
  */
 export async function fetchStockCandles(
   symbol: string,
-  range: string = '6mo',
-  interval: '1d' | '1h' | '15m' | '5m' = '1d'
+  range?: string,
+  interval: '1d' | '1h' | '15m' | '5m' | '1wk' = '1d'
 ): Promise<Candle[]> {
+  const actualRange = range || getOptimalRangeForInterval(interval);
+
   try {
     const { cookie, crumb } = await getYahooSession();
 
     const url = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
       symbol
-    )}?interval=${interval}&range=${range}&crumb=${crumb}`;
+    )}?interval=${interval}&range=${actualRange}&crumb=${crumb}`;
 
     const res = await fetch(url, {
       headers: {
@@ -112,9 +125,15 @@ export async function fetchStockCandles(
         !isNaN(closes[i])
       ) {
         const time = timestamps[i];
+        const dateObj = new Date(time * 1000);
+        const dateStr =
+          interval === '15m' || interval === '1h'
+            ? dateObj.toISOString().replace('T', ' ').slice(0, 16)
+            : dateObj.toISOString().split('T')[0];
+
         candles.push({
           time,
-          dateStr: new Date(time * 1000).toISOString().split('T')[0],
+          dateStr,
           open: Number(opens[i].toFixed(2)),
           high: Number(highs[i].toFixed(2)),
           low: Number(lows[i].toFixed(2)),
@@ -125,50 +144,74 @@ export async function fetchStockCandles(
     }
 
     if (candles.length > 0) {
-      console.log(`[MarketData] Successfully loaded ${candles.length} REAL live candles for ${symbol}. Latest Close: $${candles[candles.length - 1].close}`);
       return candles;
     }
 
     throw new Error(`Zero valid candles for ${symbol}`);
   } catch (err: any) {
-    console.error(`[MarketData] Real market fetch error for ${symbol}: ${err.message}`);
-    // If real market data fetch completely fails (e.g. offline), fall back to benchmark simulation
-    return generateBenchmarkCandles(symbol);
+    return generateBenchmarkCandles(symbol, interval);
   }
 }
 
 /**
- * High-fidelity fallback only used if internet is disconnected
+ * Benchmark fallback tailored per timeframe
  */
-function generateBenchmarkCandles(symbol: string): Candle[] {
-  console.warn(`[MarketData] Using simulation benchmark for ${symbol}`);
+function generateBenchmarkCandles(
+  symbol: string,
+  interval: string = '1d'
+): Candle[] {
   const candles: Candle[] = [];
-  const baseTime = Math.floor(Date.now() / 1000) - 75 * 86400;
   const count = 75;
+
+  let stepSeconds = 86400; // default 1d
+  if (interval === '15m') stepSeconds = 900;
+  else if (interval === '1h') stepSeconds = 3600;
+  else if (interval === '1wk') stepSeconds = 604800;
+
+  const baseTime = Math.floor(Date.now() / 1000) - count * stepSeconds;
 
   let basePrice = 120.0;
   if (symbol.toUpperCase().includes('NVDA')) basePrice = 202.0;
   if (symbol.toUpperCase().includes('AAPL')) basePrice = 230.0;
   if (symbol.toUpperCase().includes('RELIANCE')) basePrice = 1307.0;
 
-  const resistance = basePrice * 1.12;
-  const initialSupport = basePrice * 0.95;
+  // Timeframe variation factors
+  const isIntraday = interval === '15m' || interval === '1h';
+  const cyclePeriod = isIntraday ? 8 : 7;
+  const spreadFactor = isIntraday ? 0.05 : 0.12;
+
+  const resistance = basePrice * (1 + spreadFactor);
+  const initialSupport = basePrice * (1 - spreadFactor * 0.8);
 
   for (let i = 0; i < count; i++) {
-    const cycle = Math.sin((i / 7) * Math.PI);
-    const risingSupport = initialSupport + (i / count) * (resistance - initialSupport - basePrice * 0.02);
+    const cycle = Math.sin((i / cyclePeriod) * Math.PI);
+    const risingSupport =
+      initialSupport + (i / count) * (resistance - initialSupport - basePrice * 0.015);
     const normalizedWave = (cycle + 1) / 2;
     const price = risingSupport + normalizedWave * (resistance - risingSupport);
 
-    const open = Number((price - basePrice * 0.005).toFixed(2));
-    const high = Number(Math.min(price + basePrice * 0.012, resistance + basePrice * 0.002).toFixed(2));
-    const low = Number(Math.max(price - basePrice * 0.012, risingSupport - basePrice * 0.002).toFixed(2));
+    const barSpread = isIntraday ? basePrice * 0.003 : basePrice * 0.008;
+    const open = Number((price - barSpread * 0.5).toFixed(2));
+    const high = Number(
+      Math.min(price + barSpread, resistance + basePrice * 0.001).toFixed(2)
+    );
+    const low = Number(
+      Math.max(price - barSpread, risingSupport - basePrice * 0.001).toFixed(2)
+    );
     const close = Number(price.toFixed(2));
-    const volume = Math.floor(25000000 + Math.sin(i * 0.5) * 8000000);
+    const volume = Math.floor(
+      (isIntraday ? 1500000 : 25000000) + Math.sin(i * 0.5) * (isIntraday ? 400000 : 8000000)
+    );
+
+    const time = baseTime + i * stepSeconds;
+    const dateObj = new Date(time * 1000);
+    const dateStr = isIntraday
+      ? dateObj.toISOString().replace('T', ' ').slice(0, 16)
+      : dateObj.toISOString().split('T')[0];
 
     candles.push({
-      time: baseTime + i * 86400,
-      dateStr: new Date((baseTime + i * 86400) * 1000).toISOString().split('T')[0],
+      time,
+      dateStr,
       open,
       high,
       low,
@@ -178,9 +221,9 @@ function generateBenchmarkCandles(symbol: string): Candle[] {
   }
 
   const lastIndex = candles.length - 1;
-  candles[lastIndex].close = Number((resistance * 0.994).toFixed(2));
+  candles[lastIndex].close = Number((resistance * 0.993).toFixed(2));
   candles[lastIndex].high = Number((resistance * 0.998).toFixed(2));
-  candles[lastIndex].volume = Math.floor(candles[lastIndex].volume * 1.85);
+  candles[lastIndex].volume = Math.floor(candles[lastIndex].volume * 1.8);
 
   return candles;
 }

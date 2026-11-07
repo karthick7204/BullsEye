@@ -15,7 +15,11 @@ export interface ScanResult {
 /**
  * Runs the full pattern detection & breakout analysis pipeline on a set of candles.
  */
-export function analyzeStockCandles(symbol: string, candles: Candle[]): ScanResult {
+export function analyzeStockCandles(
+  symbol: string,
+  candles: Candle[],
+  timeframe: string = '1d'
+): ScanResult {
   if (candles.length < 25) {
     return {
       symbol,
@@ -51,8 +55,9 @@ export function analyzeStockCandles(symbol: string, candles: Candle[]): ScanResu
   );
 
   const patternResult: PatternResult = {
-    id: `${symbol}_${classified.patternType}_${Date.now()}`,
+    id: `${symbol}_${classified.patternType}_${timeframe}_${Date.now()}`,
     symbol,
+    timeframe,
     patternType: classified.patternType,
     direction: classified.direction,
     upperLine: classified.upperLine,

@@ -24,15 +24,16 @@ router.get('/active', (_req: Request, res: Response) => {
  */
 router.get('/scan/:symbol', async (req: Request, res: Response): Promise<any> => {
   const symbol = String(req.params.symbol || '');
-  const period = (req.query.period as string) || '6mo';
-  const interval = (req.query.interval as '1d' | '1h' | '15m' | '5m') || '1d';
+  const period = req.query.period as string;
+  const interval = (req.query.interval || req.query.timeframe || '1d') as any;
 
   try {
     const candles = await fetchStockCandles(symbol, period, interval);
-    const scanResult = analyzeStockCandles(symbol.toUpperCase(), candles);
+    const scanResult = analyzeStockCandles(symbol.toUpperCase(), candles, interval);
 
     return res.json({
       symbol: symbol.toUpperCase(),
+      timeframe: interval,
       hasPattern: scanResult.hasPattern,
       pattern: scanResult.pattern,
       highPivotsCount: scanResult.highPivotsCount,
