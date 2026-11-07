@@ -619,10 +619,13 @@
     // Select & Load Stock into Chart
     async function selectStock(symbol) {
       currentSymbol = symbol;
-      const isNSE = symbol.includes('.NS') || symbol.includes('.BO');
-      const cleanSym = symbol.replace('.NS', '').replace('.BO', '');
+      const isNSE = symbol.includes('.NS') || symbol.includes('.BO') || symbol.includes('^NSE') || symbol.includes('^BSE');
+      const cleanSym = symbol.replace('.NS', '').replace('.BO', '').replace('^', '');
       const exchName = isNSE ? 'NSE' : 'NASDAQ';
       const fullName = isNSE ? 'National Stock Exchange (India)' : 'NASDAQ (US Global)';
+
+      // Immediately highlight clicked stock in watchlist
+      renderWatchlist();
 
       document.getElementById('headerSymbol').innerText = cleanSym;
       document.getElementById('headerStockAvatar').innerText = cleanSym.slice(0, 3);
@@ -675,7 +678,7 @@
           window.updateHud(latest.open, latest.high, latest.low, latest.close, latest.volume);
         }
 
-        const isIndian = symbol.includes('.NS') || symbol.includes('NIFTY') || symbol.includes('SENSEX');
+        const isIndian = isNSE || symbol.includes('NIFTY') || symbol.includes('SENSEX');
         const currSym = isIndian ? '₹' : '$';
 
         document.getElementById('quickBuyPrice').innerText = latest.close.toFixed(2);
@@ -764,13 +767,33 @@
           }
           candleSeries.setMarkers(uniqueMarkers);
         } else {
+          // Clear lines & markers cleanly for non-pattern stocks
           upperLineSeries.setData([]);
           lowerLineSeries.setData([]);
           breakoutLineSeries.setData([]);
           candleSeries.setMarkers([]);
+
+          // Update stats with recent 30-period support/resistance
+          const recent30 = uniqueCandles.slice(-30);
+          const recentHigh = Math.max(...recent30.map(c => c.high));
+          const recentLow = Math.min(...recent30.map(c => c.low));
+
+          document.getElementById('headerPatternName').innerText = 'Consolidation';
+          document.getElementById('statPatternPill').innerText = 'Consolidation';
+          document.getElementById('quickProximityText').innerText = `Range Trading`;
+          document.getElementById('statProximityText').innerText = `Range Bound`;
+          document.getElementById('statBreakoutTarget').innerText = `${currSym}${recentHigh.toFixed(2)}`;
+          document.getElementById('statSupportFloor').innerText = `${currSym}${recentLow.toFixed(2)}`;
+          document.getElementById('statVolumeMult').innerText = `1.0x Normal`;
+          document.getElementById('statPatternFit').innerText = `Healthy`;
+          document.getElementById('statProximityBar').style.width = `45%`;
         }
 
         chartInstance.timeScale().fitContent();
+      } catch (err) {
+        console.error('Error loading stock:', err);
+      }
+    }
       } catch (err) {
         console.error('Error loading stock:', err);
       }
@@ -877,11 +900,19 @@
       }
     }
 
+    // Select Index from Watchlist
+    function selectIndexStock(name) {
+      if (name.includes('NIFTY 50')) selectStock('^NSEI');
+      else if (name.includes('BANK')) selectStock('^NSEBANK');
+      else if (name.includes('SENSEX')) selectStock('^BSESN');
+      else if (name.includes('SPX')) selectStock('^GSPC');
+    }
+
     // Render Indices
     function renderIndices() {
       const container = document.getElementById('indicesList');
       container.innerHTML = presetIndices.map(ind => `
-        <div class="px-4 py-2 grid grid-cols-12 items-center hover:bg-slate-100/60 dark:hover:bg-[#252a36] cursor-pointer">
+        <div onclick="selectIndexStock('${ind.symbol}')" class="px-4 py-2 grid grid-cols-12 items-center hover:bg-slate-100/60 dark:hover:bg-[#252a36] cursor-pointer transition-colors">
           <div class="col-span-5 font-bold text-slate-800 dark:text-slate-300 truncate">${ind.symbol}</div>
           <div class="col-span-4 text-right font-mono font-medium text-slate-700 dark:text-slate-300">${ind.price}</div>
           <div class="col-span-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">${ind.chgPct}</div>

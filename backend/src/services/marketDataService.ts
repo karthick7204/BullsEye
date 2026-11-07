@@ -3,6 +3,12 @@ import { Candle } from '../types/market';
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
+interface CacheEntry {
+  candles: Candle[];
+  cachedAt: number;
+}
+const candleCache = new Map<string, CacheEntry>();
+
 /**
  * Normalizes Yahoo range according to interval
  */
@@ -92,6 +98,13 @@ export async function fetchStockCandles(
   interval: '1d' | '1h' | '15m' | '5m' | '1wk' = '1d'
 ): Promise<Candle[]> {
   const actualRange = range || getOptimalRangeForInterval(interval);
+  const cacheKey = `${symbol.toUpperCase()}_${interval}_${actualRange}`;
+
+  // Instant In-Memory Cache (TTL: 60 seconds)
+  const cached = candleCache.get(cacheKey);
+  if (cached && Date.now() - cached.cachedAt < 60000) {
+    return cached.candles;
+  }
 
   // Strategy 1: Direct Yahoo query1 with Windows User-Agent
   try {
@@ -110,6 +123,7 @@ export async function fetchStockCandles(
       const data: any = await res.json();
       const candles = parseYahooCandles(data, interval);
       if (candles.length >= 10) {
+        candleCache.set(cacheKey, { candles, cachedAt: Date.now() });
         return candles;
       }
     }
@@ -134,6 +148,7 @@ export async function fetchStockCandles(
       const data: any = await res.json();
       const candles = parseYahooCandles(data, interval);
       if (candles.length >= 10) {
+        candleCache.set(cacheKey, { candles, cachedAt: Date.now() });
         return candles;
       }
     }
@@ -142,7 +157,9 @@ export async function fetchStockCandles(
   }
 
   // Fallback: Accurate benchmark generator
-  return generateBenchmarkCandles(symbol, interval);
+  const benchmark = generateBenchmarkCandles(symbol, interval);
+  candleCache.set(cacheKey, { candles: benchmark, cachedAt: Date.now() });
+  return benchmark;
 }
 
 /**
