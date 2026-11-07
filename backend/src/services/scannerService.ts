@@ -3,8 +3,33 @@ import { BreakoutAlert } from '../types/alerts';
 import { fetchStockCandles } from './marketDataService';
 import { analyzeStockCandles } from './patternEngine';
 
+export interface WatchlistItemSummary {
+  symbol: string;
+  cleanSymbol: string;
+  name: string;
+  exchange: 'NSE' | 'NASDAQ' | 'NYSE';
+  currency: 'INR' | 'USD';
+  currentPrice: number;
+  change: number;
+  changePercent: number;
+  hasPattern: boolean;
+  patternType?: string;
+  proximityPercent?: number;
+  breakoutLevel?: number;
+}
+
 export class ScannerService {
   private watchlist: string[] = [
+    // NSE Indian Equities
+    'TCS.NS',
+    'RELIANCE.NS',
+    'INFY.NS',
+    'HDFCBANK.NS',
+    'ICICIBANK.NS',
+    'AXISBANK.NS',
+    'BAJFINANCE.NS',
+    'TATAMOTORS.NS',
+    // Foreign / US Equities
     'NVDA',
     'AAPL',
     'MSFT',
@@ -13,12 +38,10 @@ export class ScannerService {
     'GOOGL',
     'AMZN',
     'META',
-    'RELIANCE.NS',
-    'TCS.NS',
-    'INFY.NS',
   ];
 
   private activePatterns: Map<string, PatternResult> = new Map();
+  private watchlistSummaries: Map<string, WatchlistItemSummary> = new Map();
   private alerts: BreakoutAlert[] = [];
   private isScanning: boolean = false;
   private currentTimeframe: '1d' | '1h' | '15m' | '1wk' = '1d';
@@ -27,6 +50,32 @@ export class ScannerService {
 
   constructor() {
     // Keep maximum 100 recent alerts
+  }
+
+  private getStockDisplayName(ticker: string): string {
+    const names: Record<string, string> = {
+      TCS: 'Tata Consultancy Services',
+      RELIANCE: 'Reliance Industries Ltd',
+      INFY: 'Infosys Limited',
+      HDFCBANK: 'HDFC Bank Limited',
+      ICICIBANK: 'ICICI Bank Limited',
+      AXISBANK: 'Axis Bank Limited',
+      BAJFINANCE: 'Bajaj Finance Limited',
+      TATAMOTORS: 'Tata Motors Limited',
+      NVDA: 'NVIDIA Corporation',
+      AAPL: 'Apple Inc.',
+      MSFT: 'Microsoft Corporation',
+      TSLA: 'Tesla, Inc.',
+      AMD: 'Advanced Micro Devices',
+      GOOGL: 'Alphabet Inc. (Google)',
+      AMZN: 'Amazon.com, Inc.',
+      META: 'Meta Platforms, Inc.',
+    };
+    return names[ticker] || ticker;
+  }
+
+  public getWatchlistSummaries(): WatchlistItemSummary[] {
+    return Array.from(this.watchlistSummaries.values());
   }
 
   public getTimeframe(): string {
@@ -109,15 +158,43 @@ export class ScannerService {
       for (const symbol of this.watchlist) {
         try {
           const candles = await fetchStockCandles(symbol, undefined, tf);
+          if (!candles || candles.length === 0) continue;
+
+          const latest = candles[candles.length - 1];
+          const prev = candles[candles.length - 2] || latest;
+          const chg = Number((latest.close - prev.close).toFixed(2));
+          const chgPct = Number(((chg / prev.close) * 100).toFixed(2));
+          const isNSE = symbol.toUpperCase().endsWith('.NS') || symbol.toUpperCase().endsWith('.BO');
+          const clean = symbol.replace('.NS', '').replace('.BO', '');
+
+          const summary: WatchlistItemSummary = {
+            symbol,
+            cleanSymbol: clean,
+            name: this.getStockDisplayName(clean),
+            exchange: isNSE ? 'NSE' : 'NASDAQ',
+            currency: isNSE ? 'INR' : 'USD',
+            currentPrice: latest.close,
+            change: chg,
+            changePercent: chgPct,
+            hasPattern: false,
+          };
+
           const result = analyzeStockCandles(symbol, candles, tf);
 
           if (result.hasPattern && result.pattern) {
             this.activePatterns.set(symbol, result.pattern);
             foundCount++;
             this.evaluateAlert(result.pattern);
+
+            summary.hasPattern = true;
+            summary.patternType = result.pattern.patternType;
+            summary.proximityPercent = result.pattern.proximityPercent;
+            summary.breakoutLevel = result.pattern.breakoutLevel;
           } else {
             this.activePatterns.delete(symbol);
           }
+
+          this.watchlistSummaries.set(symbol, summary);
         } catch (err: any) {
           console.warn(`[Scanner] Failed to analyze ${symbol}: ${err.message}`);
         }

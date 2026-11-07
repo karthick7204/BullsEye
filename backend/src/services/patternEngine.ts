@@ -54,6 +54,11 @@ export function analyzeStockCandles(
     classified.direction
   );
 
+  const isNSE = symbol.toUpperCase().endsWith('.NS') || symbol.toUpperCase().endsWith('.BO');
+  const isIndex = symbol.startsWith('^');
+  const exchange: 'NSE' | 'NASDAQ' | 'NYSE' | 'INDEX' = isIndex ? 'INDEX' : (isNSE ? 'NSE' : 'NASDAQ');
+  const currency: 'INR' | 'USD' = isNSE ? 'INR' : 'USD';
+
   const patternResult: PatternResult = {
     id: `${symbol}_${classified.patternType}_${timeframe}_${Date.now()}`,
     symbol,
@@ -76,6 +81,8 @@ export function analyzeStockCandles(
     apexTime: classified.apexIndex && candles[Math.min(Math.round(classified.apexIndex), candles.length - 1)]
       ? candles[Math.min(Math.round(classified.apexIndex), candles.length - 1)].time
       : undefined,
+    exchange,
+    currency,
     detectedAt: Date.now(),
   };
 

@@ -62,6 +62,8 @@ export interface PatternResult {
   lowerTouches: Pivot[];
   apexIndex?: number;
   apexTime?: number;
+  exchange?: 'NSE' | 'NASDAQ' | 'NYSE' | 'INDEX';
+  currency?: 'INR' | 'USD';
   detectedAt: number;
 }
 

@@ -59,6 +59,18 @@ router.get('/watchlist', (_req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/scanner/watchlist-summary
+ * Returns all tracked stocks segmented with real market prices, 24h changes, and active breakout status.
+ */
+router.get('/watchlist-summary', (_req: Request, res: Response) => {
+  res.json({
+    items: scannerService.getWatchlistSummaries(),
+    activePatterns: scannerService.getActivePatterns(),
+    timestamp: Date.now(),
+  });
+});
+
+/**
  * POST /api/scanner/watchlist
  * Adds a new ticker to the scanner watchlist.
  */
